@@ -1,0 +1,160 @@
+---
+title: "Bronze Age mounds - Are they different?"
+author: "Adela Sobotkova"
+date: "2022-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(sf)
+```
+
+## Load 2009-2022 data
+```{r load-mounds}
+# Yambol mounds
+mnds <- read_sf("../output_data/Yam_mnds.shp")
+head(mnds)
+```
+# Bronze Age mounds from Toshko
+```{r bronze-age-m}
+# Take out the BA mounds from the FAIMS data
+bronze <- c(6009,8007,6010,8345,8346,8357, 8502, 8351, 9257)
+BA <- mnds %>% 
+  filter(TRAP %in% bronze)
+
+# Add the few mounds excavated before TRAP coverage >> these should be pulled out of the AOR dataset to get the Height, Diameter and other dimensions..
+extras <- data.frame(place = c("Drazhevo", 
+                           "Straldzha",
+                           "Popovo"),
+                 Easting=c(455442,479522,479391),
+                 Northing=c(4710935,4715730,4668279))
+extrasf <- st_as_sf(extras, coords =c("Easting", "Northing"), crs = 32635)
+
+BApoints <- rbind(st_coordinates(BA) ,st_coordinates(extrasf))
+```
+
+
+```{r}
+library(mapview)
+mapview(BA, zcol = "HeghtMx") + mapview(extrasf)
+```
+# Excavated mounds from Yambol based on AORs
+
+```{r load-AOR-google}
+library(googlesheets4)
+gs4_deauth()
+
+
+general <- read_sheet("https://docs.google.com/spreadsheets/d/1l2glM1X8eiWFArunnnTG6iGdWUvcd7LVBYiFcbjBDJQ/edit#gid=1761342759&fvid=1870098839")
+mound <- read_sheet("https://docs.google.com/spreadsheets/d/1l2glM1X8eiWFArunnnTG6iGdWUvcd7LVBYiFcbjBDJQ/edit#gid=1172661582", range = "MoundAttributes")
+burial <- read_sheet("https://docs.google.com/spreadsheets/d/1l2glM1X8eiWFArunnnTG6iGdWUvcd7LVBYiFcbjBDJQ/edit#gid=1172661582", range = "BurialAttributes")
+
+# here I can join them all and play.
+```
+Alternatively, and better perhaps, I can load the merged data in json format from \url{https://sciencedata.dk/index.php/apps/files/?dir=%2FSDAM_root%2FSDAM_data%2Fmounds&id=7813458&owner=648597%40au.dk} sciencedata.dk, unlist and work with
+These Izvestia_df.json and AOR_df.json have been downloaded in data folder
+Some guidance on unnesting:
+https://stackoverflow.com/questions/38860380/unnesting-a-list-of-lists-in-a-data-frame-column
+
+```{r}
+library(jsonlite)
+
+json <- read_json("../data/AOR_df_2020-06-24.json", simplifyVector = TRUE)
+
+json <- json %>% as_tibble()
+
+# test
+j <- json %>% 
+  select(MoundID, Municipality,Region, Lat, Long, `Error radius(m)`, 
+    LU_Around, MoundCover, Geomorphology, Prominence, MoundName, GT, RT,Condition, 
+    `Source of Impact`, FirstStartDate, 
+   MaxEndDate, FirstEnclosureType, 
+    ) %>% 
+  unnest(cols = c(MoundID, Municipality,Region, Lat, Long, `Error radius(m)`, 
+    LU_Around, MoundCover, Geomorphology, Prominence, MoundName,GT, RT,Condition, 
+    `Source of Impact`,  FirstStartDate, 
+   MaxEndDate, FirstEnclosureType, 
+     ))
+j
+# numbers in columns seem to be a problem:
+
+BApotential <- j %>% 
+  filter(Region == "Yambol") %>%
+  filter(FirstStartDate < -2000)
+  
+BApotential
+
+
+```
+
+
+
+
+# Extract data from raster
+```{r}
+Y_elev <- raster("../output_data/Yelev32635.tif")
+st_crs(Y_elev)==st_crs(mnds)
+```
+
+
+## Intervisibility
+```{r}
+# Test linestring creation on the first three BA mounds
+coords <- cbind(st_coordinates(extrasf$geometry),st_coordinates(BA$geometry[1:3]))
+
+# Test linestring creation from one origin and multiple target points. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
+coords <- as.matrix(cbind(as.data.frame(st_coordinates(extrasf$geometry[2])),
+                as.data.frame(st_coordinates(BA$geometry))))
+
+lines <-  st_sfc(
+     lapply(1:nrow(coords),
+           function(i){
+             st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
+           }))
+
+st_crs(lines) <- st_crs(BA)
+plot(lines) ; plot(extrasf$geometry[1], col = "red", add = T) ;
+plot(BA$geometry, col = "green", add = T)
+
+
+library(mapview)
+mapview(lines)+mapview(BA$geometry)+ mapview(extrasf$geometry)
+
+# https://stackoverflow.com/questions/65498300/how-to-efficiently-create-linestrings-from-points
+# https://stackoverflow.com/questions/58150279/plotting-lines-between-two-sf-point-features-in-r
+```
+
+# Extract raster values for BA mounds (elevation and prominence)
+Ideally, when grabbing the excavated mounds, I get the information from the AOR reports, so have as complete a record of the morphology as possible
+```{r sample-elev-aspect-slope-22}
+# Prerequisite to sampling - a dataframe with coordinates alone
+extras
+BApoints
+
+# Sample elevations at mound locations
+extras$elevAster <- raster::extract(elev, st_coordinates(extrasf))
+
+# Extract values from slope/aspect rasters created in script 00
+extras$slopeAster <-  raster::extract(Y_aspslope$slope, st_coordinates(extrasf))
+
+extras$aspectAster <-  raster::extract(Y_aspslope$aspect, st_coordinates(extrasf))
+
+
+
+# Calculate prominence 
+
+library(FSA) # we need an additional library for the perc() function
+?perc()      # check the fce is here
+extras$prom250mbuff <- raster::extract(elev,# raster containing elevation data
+                        st_coordinates(extrasf), # centroids of mounds
+                        buffer = 250, # actual buffer size in crs units, in this case 250m  or ca 22x22 cells around kernel
+                        fun = function(x){perc(x,x[length(x)/2],"lt", na.rm = FALSE, digits = 2)})
+
+extrasf <- extrasf %>% 
+  left_join(extras, by = "place")
+extrasf
+
+BA <- rbind.fill(data.frame(BA),extras)
+```
+

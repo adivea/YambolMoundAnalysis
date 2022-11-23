@@ -1,0 +1,359 @@
+---
+title: "Yambol Data Preparation"
+author: "Adela Sobotkova"
+date: "updated`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+## Data Loading and Preparation
+
+This script prepares the data for follow up analysis. It helps you load the FAIMS data from 2009-2018 and 2022 on burial mounds from Yambol as well as associated Yambol region vectors and elevation rasters. It uses the latter for mound data enrichment. Its outputs are:
+
+- an aggregate dataset of FAIMS features with attributes such as ASTER elevation, topographic prominence, roughness etc. 
+- mosaiced raster that fits the confines of the Yambol Province
+- mosaiced raster that crosses the Yambol-Turkish border 
+
+## Setup
+
+```{r libraries}
+library(tidyverse)
+library(sf)
+library(raster)
+```
+
+## Load 2009-2018 data
+This data is a bit special as it was processed in 2020 (see MoundMerging2020 repo in Github)
+```{r mounds18}
+# Environmental-extraction-enriched output from 2020 Mound Merging repo > 07_EnrichSpatial.R
+mn09_18 <- read_csv2("../data/enriched_all.csv")
+names(mn09_18)
+mn09_18 %>% 
+  group_by(Type) %>% 
+  count()
+
+
+# If you need raw data, see the raw/ folder
+# mn17 <- read_csv("../data/2017ElenovoAll.csv")
+# mn18 <- read_csv("../data/2018Bolyarovo.csv")
+# mn10 <- read_csv("../data/2010-LGV-Bara-enrichedOR-20200619.csv")
+# names(mn10)
+# names(mn17)
+```
+## Load 2022 data
+
+2022 data was freshly collected via FAIMS app in September 2022.
+
+I used 2022_Elhovo_ORcleaningscript to clean up data from the Elhovo 2022 Burial module first (https://docs.google.com/document/d/1Xcq5yuQOrQpVOkGF2fp3ZeK4ynyaTVa3sZZ41NI7ZF8/edit) and deposit the exported spreadsheets in the data/ folder
+
+```{r load-mnd22-data}
+# Load data
+mounds22_1 <- read_csv("../data/20220921BurialMoundOne-csv.csv")
+mounds22_2 <- read_csv("../data/20220927BurialMoundTwo-csv.csv")
+
+mounds22 <- rbind(mounds22_1,mounds22_2)
+table(mounds22$TypeClean)
+names(mounds22)
+
+# wrangle to 20 columns
+mnd22 <- mounds22 %>%
+  rename(TRAP=MoundID, Type=TypeClean, LU_Around = LanduseAroundMound, LU_Top = LanduseOnTopOfMound) %>% 
+  dplyr::select(TRAP, Source, Type, LU_Around, LU_Top, DiameterMax, HeightMax, Condition, PrincipalSourceOfImpact, Date, Northing, Easting, geospatialcolumn)
+```
+
+## Spatialize
+
+```{r make-verified-spatial}
+# check for missing coordinates
+which(is.na(mn09_18$geometry))
+
+# convert to a simple feature
+mn18 <- st_as_sf(mn09_18, coords = c("X", "Y"), crs = 32635)
+
+# sanity check
+plot(mn18$geometry)
+
+```
+
+now, add 2022 data
+```{r 22-spatial}
+# check for missing coordinates
+which(is.na(mnd22$geospatialcolumn))
+
+# convert to a simple feature
+mn22 <- st_as_sf(mnd22, coords = c("Easting", "Northing"), crs = 32635)
+
+# sanity check
+plot(mn18$geometry, col = 'darkred');plot(mn22$geometry, col = 'red', add =T)
+
+
+```
+
+
+## Yambol environmental and topographic data
+
+
+### Load Vector data
+```{r load-Y-vector}
+# Load vectors
+bg_border <- st_read("../data/Bulgaria_Border.shp")
+Y_towns <- st_read("../data/Modern_settlements_Yambol_TRAP.shp")
+towns <- st_read("C:/Users/Adela/Documents/Professional/Projects/MQNS/GIS/Vectors/Yamurbanarea.shp") # towns within 15km buffer of Yambol boundary exported from JICA
+Y_region <- st_read("../data/YamRegion.shp")
+
+```
+
+### Mosaic and project component rasters
+Wrangle rasters and mosaic them, then project to 32635.
+Load vectors and check they are in 32635
+
+```{r mosaic-rasters,eval =FALSE}
+# Load ASTER DEM raster, provided by JICA (2005?), unprojected! (projected files do not align)
+
+Yam <- raster("E:/TRAP Workstation/Shared GIS/Satellite imagery/ASTER/DEM/ASTGTM_N42E026/ASTGTM_N42E026_dem.tif")
+Tur <- raster("E:/TRAP Workstation/Shared GIS/Satellite imagery/ASTER/DEM/ASTGTM_N41E026/ASTGTM_N41E026_dem.tif")
+
+Yam # projected WGS84 0.00027 resolution, 3601x3601 cells
+Tur # projected WGS84 0.00027 resolution, 3601x3601 cells
+
+# Mosaic the two tiles to one covers the BG-TUR boundary 
+library(raster)
+library(rgdal)
+
+Y_elev <- mosaic(Yam, Tur, fun = mean, tolerance = 1)
+writeRaster(Y_elev, file="../output_data/Yelev.tif", format="GTiff", overwrite = TRUE)
+
+# Project to 32635 so it's consistent with vector data
+Y_Lelev32635 <- projectRaster(Y_elev, crs = 32635)
+
+writeRaster(Y_Lelev32635, file= ", format="GTiff", overwrite = TRUE)
+rm(Y_elev)
+rm(Y_Lelev32635)
+```
+
+
+### Load Raster data
+```{r load-elev}
+library(raster)
+
+# Load projected raster cropped to Yambol region boundary 
+
+Y_elev32635 <- raster("../output_data/Yelev32635.tif")
+plot(Y_elev32635)
+
+
+# If loading the large mosaiced raster ( "../output_data/YLelev32635.tif" or the unprojected Y_elev.tif)because you have mounds outside Yambol region, rename and crop it to a buffer around Yambol 
+
+elev <- raster("../output_data/YLelev32635.tif")
+plot(elev)
+# elev <- crop(Y_Lelev32635, st_buffer(Y_region, 5000))
+# elev <- mask(elev, st_buffer(Y_region, 5000))
+# plot(elev)
+# Y_elev <- crop(Y_elev32635, Y_region)
+# Y_elev <- mask(Y_elev, Y_region)
+# writeRaster(Y_elev, "../output_data/Yelev32635.tif", format="GTiff", overwrite = TRUE)
+
+```
+
+## Plot everything
+```{r plot-all}
+plot(elev)
+#plot(towns$geometry, col = 'green', add =T);
+# plot(Y_towns$geometry, col = 'red', add =T)
+plot(bg_border$geometry, add = T)
+plot(mn18$geometry, add = T)
+plot(mn22$geometry, add =T)
+
+```
+
+
+## Enrich 2022 data
+2018 features have already been enriched during their processing in 2020. 2022 mounds need this basic enrichment. Both datasets will need TPI, TRI and other indeces extracted from the raster data.
+
+
+### Distance to BG border
+
+```{r}
+# Distance from points to BG boundary
+mn22$distBG <-  st_distance(mn22,bg_border)
+mn22$distBG[1:3,]
+
+mn18$distBG <-  st_distance(mn18,bg_border)
+mn18$distBG[1:3,]
+
+```
+
+
+### Distance from mound points to nearest settlement
+
+This is a two-step process: 
+
+1. selecting closest town via `st_nearest()` and 
+ `nearest <-  try(st_nearest_feature(mn22, towns))`
+ try()` is a wrapper to run an expression that might fail and allow recovery
+2. getting distance with `st_distance()`
+ `distTown <- st_distance(mn22, towns[st_nearest_feature(mn22, towns),], by_element = TRUE)`
+ 
+```{r distance}
+# Distance to nearest (as the crow flies) village
+mn22$distTown <- st_distance(mn22, towns[st_nearest_feature(mn22, towns),], by_element = TRUE)
+head(mn22,3)
+mn18$distTown <- st_distance(mn18, towns[st_nearest_feature(mn18, towns),], by_element = TRUE)
+head(mn18,3)
+```
+
+
+
+### Sample elevation, aspect and slope at mound coordinates for 2022 data
+
+```{r elev-aspect-slope-22}
+# Prerequisite to sampling - a dataframe with coordinates alone
+mound_coordinates <- data.frame(st_coordinates(mn22)) # don't add TRAP yet
+
+
+# Sample elevations at mound locations
+mn22$elevAster <- raster::extract(elev, mound_coordinates)
+
+# Create slope and aspect raster (can add 'flowdir' also, if needed)
+Y_aspslope <- raster::terrain(elev, opt = c('slope','aspect'), neighbors = 8, unit= 'degrees')
+Y_flow <-  raster::terrain(elev, opt ='flowdir', neighbors = 8) #flowdir returns the 'flow direction' (of water), i.e. the direction of the greatest drop in elevation (or the smallest rise if all neighbors are higher). They are encoded as powers of 2 (0 to 7). The cell to the right of the focal cell 'x' is 1, the one below that is 2, and so on:
+Y_TPI <- raster::terrain(elev, opt ='TPI', neighbors = 8)
+Y_TRI <- raster::terrain(elev, opt ='TRI', neighbors = 8)
+Y_rough <- raster::terrain(elev, opt ='roughness', neighbors = 8)
+
+plot(elev)
+plot(Y_aspslope)
+plot(Y_flow)
+plot(Y_TRI)
+
+# example
+plot(mn22$geometry);plot(Y_flow, add =T); plot(mn22$geometry, add= TRUE)
+
+
+  # Write to file
+writeRaster(Y_aspslope, filename = "../output_data/Yaspslope35.tif", format="GTiff", overwrite = TRUE)
+
+# Extract values
+mn22$slopeAster <-  raster::extract(Y_aspslope$slope, mound_coordinates)
+mn22$aspectAster <-  raster::extract(Y_aspslope$aspect, mound_coordinates)
+mn22$TRI <-  raster::extract(Y_TRI$tri, mound_coordinates)
+mn22$TPI <-  raster::extract(Y_TPI$tpi, mound_coordinates)
+mn22$rough <-  raster::extract(Y_rough$roughness, mound_coordinates)
+
+
+```
+
+### Calculate prominence 
+```{r prominence}
+library(FSA) # we need an additional library for the perc() function
+?perc()      # check the fce is here
+mn22$prom250mbuff <- raster::extract(elev,# raster containing elevation data
+                        mound_coordinates, # centroids of mounds
+                        buffer = 250, # actual buffer size in crs units, in this case 250m  or ca 7x7 cells around kernel
+                        fun = function(x){perc(x,x[length(x)/2],"lt", na.rm = FALSE, digits = 2)})
+
+summary(mn22[,13:19]) 
+
+```
+
+## Enrich 2018 data
+
+it was already done in 2020, but let's do it again for consistency's sake
+
+```{r sample-elev-aspect-slope-18}
+# Prerequisite to sampling - a dataframe with coordinates alone
+mound_coordinates <- data.frame(st_coordinates(mn18)) # don't add TRAP yet
+
+
+# Sample elevations at mound locations
+mn18$elevAster <- raster::extract(elev, mound_coordinates)
+
+# Sample slope and aspect values
+mn18$slopeAster <-  raster::extract(Y_aspslope$slope, mound_coordinates)
+mn18$aspectAster <-  raster::extract(Y_aspslope$aspect, mound_coordinates)
+mn18$TRI <-  raster::extract(Y_TRI$tri, mound_coordinates)
+mn18$TPI <-  raster::extract(Y_TPI$tpi, mound_coordinates)
+mn18$rough <-  raster::extract(Y_rough$roughness, mound_coordinates)
+
+# Calculate prominence 
+
+library(FSA) # we need an additional library for the perc() function
+?perc()      # check the fce is here
+mn18$prom250mbuff <- raster::extract(elev,# raster containing elevation data
+                        mound_coordinates, # centroids of mounds
+                        buffer = 250, # actual buffer size in crs units, in this case 250m  or ca 22x22 cells around kernel
+                        fun = function(x){perc(x,x[length(x)/2],"lt", na.rm = FALSE, digits = 2)})
+
+
+summary(mn18[,16:24])
+
+```
+
+
+## Combine enriched datasets
+
+```{r combine-18-22}
+
+names(mn22) # 18
+names(mn18) # TopoID, Note, ...1, prom250mbuff
+str(mn22)
+str(mn18)
+
+mn18 <- mn18 %>% 
+  dplyr::select(TRAP, Source, Type, LU_Around, LU_Top, DiameterMax, HeightMax, Condition, PrincipalSourceOfImpact, geometry, distBG, distTown, elevAster, slopeAster, aspectAster, prom250mbuff, TPI, TRI, rough)
+
+mn22 <- mn22 %>% 
+  dplyr::select(TRAP, Source, Type, LU_Around, LU_Top, DiameterMax, HeightMax, Condition, PrincipalSourceOfImpact, geometry, distBG, distTown, elevAster, slopeAster, aspectAster, prom250mbuff, TPI, TRI, rough)
+
+str(mn22)
+str(mn18)
+
+mnds <- rbind(mn18,mn22)
+
+plot(mnds$geometry)
+str(mnds)
+summary(mnds[,11:19])
+
+```
+
+## Regenerate distances as they got truncated
+
+```{r mnds-distances}
+# Distance from points to BG boundary
+mnds$distBG <-  st_distance(mnds,bg_border)
+# Distance from mound points to nearest settlement
+mnds$distTown <- st_distance(mnds, towns[st_nearest_feature(mnds, towns),], by_element = TRUE)
+summary(mnds[,11:19])
+```
+
+
+
+
+```{r}
+library(mapview)
+mapview(mnds %>% filter(Type == "Burial Mound"), zcol = "distBG")
+```
+## Export enriched dataset
+
+Export the interim enriched set of all features (inside and outside of Yambol) collected during 2009-2022 seasons in the Yambol region. These will need to be filtered for actual mounds as there are settlement mounds, bunkers and lots of other stuff in there. They also need streamlining in terms of Condition, Height, etc. 
+```{r interim-export, eval = FALSE}
+write_rds(mnds, "../output_data/mnds_aggr.rds")
+read_rds("../output_data/mnds_aggr.rds")
+```

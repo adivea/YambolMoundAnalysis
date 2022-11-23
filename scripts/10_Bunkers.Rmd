@@ -1,0 +1,19 @@
+---
+title: "Bunkers"
+author: "Adela Sobotkova"
+date: "2022-11-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load 2009-2018 data
+```{r}
+# Environmental-extraction-enriched output from 2020 Mound Merging repo > 07_EnrichSpatial.R
+mn09_18 <- read_csv2("../data/enriched_all.csv")
+names(mn09_18)
+mn09_18 %>% 
+  group_by(Type) %>% 
+  count()

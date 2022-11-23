@@ -1,0 +1,219 @@
+---
+title: "Wrangle and Visualise Yambol Mounds"
+author: "Adela Sobotkova"
+date: "updated`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+library(formatR)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+## Wrangling Mound data out of FAIMS data
+
+The purpose of this script is to clean up and filter the total aggregate of FAIMS data originating from the Yambol region to mostly-mound points from within the regional boundary, whose attributes are analysis-ready.
+
+## Setup
+```{r libraries}
+library(tidyverse)
+library(sf)
+```
+
+
+## Load data
+```{r -load-aggr-data}
+features <- read_rds("../output_data/mnds_aggr.rds")
+str(features)
+#colnames(features)
+```
+
+## Add data necessary for AKB -- NEEDS COMPLETION
+### add vilage cadasters in the Elhovo municipality
+```{r AKB-data}
+
+```
+
+## Validation I: Check how many of the features are actually mounds
+
+```{r type-tally}
+# Filter mounds by type
+features %>% 
+  group_by(Type) %>% 
+  tally()
+```
+
+## Validation II: Check for duplicates
+```{r duplicate-check}
+features$TRAP[duplicated(features$TRAP)] 
+```
+
+## Validation III: Clean up condition, height and other attribute
+
+```{r clean-up}
+features <- features %>%
+  #st_drop_geometry() %>%  
+  dplyr::mutate(Condition = str_extract(Condition, "\\d")) %>%
+  dplyr::mutate(Condition = case_when(Condition == 0 ~ "NA",
+                               Condition == 6 ~ "5",
+                               Condition != 0 ~ Condition)) %>% 
+  dplyr::mutate(Condition = as.factor(Condition)) %>% 
+  dplyr::mutate(Type= gsub("\\?","",Type)) %>% 
+  dplyr::mutate(HeightMax = as.numeric(HeightMax)) %>% 
+  dplyr::mutate(DiameterMax = as.numeric(DiameterMax)) 
+
+#levels(features$Condition) = c(1,2,3,4,5, NA)
+
+# See if you need to eliminate uncertainty from Height
+# unique(features$HeightMax) # are there any ? in the data values?
+# features %>%  # if the answer is yes, you can filter them out.
+#   mutate(HeightMax = gsub("\\?", "",HeightMax)) %>%
+#   mutate(HeightMax = as.numeric(HeightMax))
+
+```
+### Subset to mounds only
+
+```{r filter-mounds}
+mnds <- features %>% 
+  dplyr::filter(Type == "Burial Mound" | Type == "Extinct Burial Mound" | Type == "Uncertain Mound")
+
+str(mnds)
+```
+
+## Clip data by Yambol region
+```{r yambol-mnds}
+Y_region <- st_read("../data/YamRegion.shp")
+Yam_mnds <- st_intersection(mnds, Y_region$geometry)
+plot(Yam_mnds$geometry)
+plot(Yam_mnds["Condition"])
+```
+
+## Export the Yambol mound dataset
+
+now that all looks reasonably well, let's export the data. These are features inside the Yambol Province.
+
+```{r export-mnds}
+write_rds(Yam_mnds, "../output_data/Yam_mnds.rds")
+#st_write(Yam_mnds,"../output_data/Yam_mnds.shp", append = FALSE )
+
+```
+
+
+## Feature types
+Yam_mnds is still a sf feature.
+```{r tally-mnds-types}
+Yam_mnds %>% 
+  group_by(Type) %>% 
+  tally()
+
+```
+
+## Filter mounds, including extinct ones
+```{r filter-extinct}
+Yam_mnds <- Yam_mnds %>% 
+  #st_drop_geometry() %>% 
+  dplyr::filter(Type == "Burial Mound" | Type == "Extinct Burial Mound" | Type == "Uncertain Mound")
+
+str(Yam_mnds)
+
+```
+
+## Mound sizes
+```{r mound-size}
+Yam_mnds %>%
+  group_by(Type) %>%
+  summarize(Max = max(HeightMax, na.rm = T), 
+            Mean = mean(HeightMax, na.rm = T),
+            Median = median(HeightMax, na.rm = T))
+
+```
+## Mound size boxplots
+```{r size-boxplot}
+
+Yam_mnds %>%
+    ggplot(aes(x = Type, y = HeightMax)) +
+    geom_violin()+
+    geom_jitter(alpha = 0.3,
+    		color = "tomato",
+    		width = 0.2,
+    		height = 0.2) +
+   theme_bw() +
+  labs(x = "Mound type",
+       y = "Maximum recorded height",
+       title = "Mound size by feature type")
+```
+
+```{r size-histogram}
+Yam_mnds %>% 
+  ggplot(aes(x = HeightMax)) +
+  geom_histogram(aes(fill = Type)) +
+  theme_bw() +
+  labs(x = "Mound height (m)",
+       y = "Feature height recorded during visit",
+       title = "Mounds in the Yambol Region")
+
+
+```
+
+
+## Mound condition
+
+```{r condition-plot}
+plot(Condition ~ HeightMax, Yam_mnds)
+```
+## Plot Condition in Space
+
+```{r map-plot}
+plot(Yam_mnds["Condition"])
+plot(Yam_mnds["elevAster"])
+```
+
+## Static map
+```{r get-yambol-elev}
+library(raster)
+library(sf)
+
+Y_elev <- raster("../output_data/Yelev32635.tif")
+plot(Y_elev)
+st_crs(Y_elev)==st_crs(Yam_mnds)
+plot(Yam_mnds,cex = sqrt(Yam_mnds$HeightMax))
+```
+
+```{r plot-mnds-in-Y, eval = FALSE}
+#par(mfrow=c(1,2))
+raster::plot(Y_elev, xlim = c(420000,520000), ylim=c(4600000, 4800000));
+raster::plot(Yam_mnds$geometry, add = T)
+raster::plot(Y_elev, xlim = c(420000,520000), ylim=c(4600000, 4800000));
+raster::plot(Yam_mnds$geometry, cex = sqrt(Yam_mnds$HeightMax), add =T)
+```
+
+## Interactive maps
+
+### Mounds by height
+
+```{r mapview-height}
+library(mapview)
+class(Yam_mnds)
+mapview(Yam_mnds, cex="HeightMax")
+```
+
+### Mounds and their condition
+```{r condition-map}
+library(mapview)
+mapview(Yam_mnds, zcol="Condition") + mapview(Y_elev)
+```
+

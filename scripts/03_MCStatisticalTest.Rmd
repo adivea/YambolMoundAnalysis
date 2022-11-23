@@ -1,0 +1,97 @@
+---
+title: "Statistical Test of the Mound Location Distribution"
+author: "Adela Sobotkova"
+date: "2022-10-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script tests the robustness of the MC results from script 02 with parametric and non-parametric tests.
+
+## Mann-Whitney U test comparing non-normal distributions
+
+In the previous test we saw that the distributions were fairly similar. 
+Let us try two different tests to see if the mound locations could be a random sample of locations from the study area.
+First, we shall try a simple t-test and second, we will use the nonparametric Mann-Whitney U test (also known as a Wilcoxon test, used for distributions that are not statistically normal).
+
+We are testing whether the mound locations were likely a random sample of locations drawn from our study area. Again, we’ll use Monte Carlo resampling to generate confidence intervals for our test statistic. Finally, we will output the test data to a comma-separated values (CSV) file for inclusion in external reports.
+
+
+## Student's T-test (for large normal data)
+
+```{r}
+# Draw 999 random samples from the region, and compute two-sample Wilcoxon tests (Mann-Whitney U tests)
+Yambol_mound_TT <- foreach(n = 1:999, .combine = rbind) %do% {
+  Yambol_sample <- yambol_region_values %>%
+    sample(nrow(Yam_mounds),
+           replace = FALSE) %>%
+    t.test(x = Yam_mounds$elevAster,
+                y = .,
+                alternative = "greater") %>%
+   broom::tidy() %>%
+   tibble::as_tibble()
+}%>%
+  dplyr::select(statistic, p.value)
+
+# Get the median test statistic and 95% confidence interval
+Yambol_mound_TT <- foreach::foreach(prob = c(0.025,0.5,0.975), .combine = rbind) %do% {
+  Yambol_mound_TT %>%
+      dplyr::summarise_all(quantile, probs = prob)
+} %>%
+  t() %>%
+  magrittr::set_colnames(c("Lower CI","Median","Upper CI")) %>%
+  magrittr::set_rownames(c("U statistic","p-value"))
+
+
+write.csv(Yambol_mound_TT, "../output_data/TT_results.csv")  
+
+Yambol_mound_TT
+```
+
+### Mann-Whitney non-parametric test (for small non-parametric data)
+```{r}
+# Draw 999 random samples from the region, and compute two-sample Wilcoxon tests (Mann-Whitney U tests)
+Yambol_mound_MWU <- foreach(n = 1:999, .combine = rbind) %do% {
+  Yambol_sample <- yambol_region_values %>%
+    sample(nrow(Yam_mounds),
+           replace = FALSE) %>%
+    wilcox.test(x = Yam_mounds$elevAster,
+                y = .,
+                alternative = "greater",
+                exact = FALSE) %>%
+   broom::tidy() %>%
+   tibble::as_tibble()
+}%>%
+  dplyr::select(statistic, p.value)
+
+# Get the median test statistic and 95% confidence interval
+Yambol_mound_MWU <- foreach::foreach(prob = c(0.025,0.5,0.975), .combine = rbind) %do% {
+  Yambol_mound_MWU %>%
+      dplyr::summarise_all(quantile, probs = prob)
+} %>%
+  t() %>%
+  magrittr::set_colnames(c("Lower CI","Median","Upper CI")) %>%
+  magrittr::set_rownames(c("U statistic","p-value"))
+
+# Write output table as a CSV
+
+write_csv(Yambol_mound_MWU, "../output_data/Mann_Whitney_results.csv")
+
+Yambol_mound_MWU
+```
+## Conclusion
+
+Both tests show that the elevation of mound locations does not diverge from the regional sample of elevations. Kuna's style frequency analysis per elevation band may be more sensitive to locational preferences than the bootstrap test!  Alternatively, test the prominence of the mounds against background prominence (harder to calculate perhaps, but doable). 
+
+### To does
+Adapt 'moundsforIli     ja" script into a 04 markdown ;)
+Develop prominence calculation into a 05 markdown
+
+```{r}
+sessionInfo()
+
+```
+
