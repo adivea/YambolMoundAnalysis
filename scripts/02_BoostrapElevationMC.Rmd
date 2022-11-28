@@ -33,24 +33,34 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Clip elevation raster by Yambol region boundary
-```{r}
-Y_elev <- crop(elev, Y_region)
-Y_elev <- mask(Y_elev, Y_region)
+```{r get-elev}
+Y_elev <- raster("../output_data/Yelev32635.tif")
 plot(Y_elev)
-
 ```
 
 ## Random sample of elevations
 ```{r}
-random <- sampleRandom(Y_elev, 1000)
+random <- sampleRandom(Y_elev, 1050) # generate sample as big as the mounds
 
-hist(Yam_mnds$elevAster, breaks = 25,  main = "Histogram of random Yambol region (grey) \n and mound location (pink) elevations")
-hist(random, col = "pink", breaks = 25, add = T, alpha = 0.5)
+hist(Yam_mnds$elevAster, breaks = 35,  main = "Histogram of random Yambol region (pink) \n and actual mound location (grey) elevations", xlim = c(50,600), xlab = "Elevation")
+hist(random, col = "pink", breaks = 35, add = T, alpha = 0.8)
 ```
+now with ggplot
+```{r}
+Yam_mnds$random <- sampleRandom(Y_elev, 1050) # ggplot wants a dataframe, not a vector
+
+ggplot(data = Yam_mnds) +
+  geom_histogram(aes(elevAster), bins = 50, fill = "darkgreen", alpha = 0.6)+
+  geom_histogram(aes(random), bins = 50, alpha = 0.5, fill = "hotpink", colour = "pink")+
+  labs(x = "Elevation",
+          y = "Frequency")+
+  theme_bw()
+```
+
 There seems to be a considerable overlap, but we only compared the mound elevations to one sample of regional elevations. So let's try with a larger sample size.
 
 ## Calculate kernel density curves for sites and landscape
-We can calculate kernel density curves using the density() function available in all R installations. This code block gets a little complicated. The first section is straightforward: we estimate the probability density for all elevations between 150 and 1250 masl (the domain of the county elevation). The second section is a bit more complicated: we estimate probability densities for 99 random samples from the elevation data. (You would probably want to draw more resamples than this in a real analysis). Each sample is of the same number of sites as there are mounds. This is called Monte Carlo resampling. The code section performs the sampling, then calculates a 95% confidence interval for the sampled data using quantiles. We will use the foreach package (and its %do% function) to repeat and output the resampling.
+We can calculate kernel density curves using the density() function available in all R installations. This code block gets a little complicated. The first section is straightforward: we estimate the probability density for all elevations between 150 and 1250 masl (the domain of the county elevation). The second section is a bit more complicated: we estimate probability densities for 99 random samples from the elevation data. (You would probably want to draw more resamples than this in a real analysis). Each sample is of the same number of sites as there are mounds. This is called Monte Carlo resampling. The code section performs the sampling, then calculates a 95% confidence interval for the sampled data using quantiles. We will use the foreach package (and its `%do%` function) to repeat and output the resampling.
 
 
 ```{r monte-carlo-gambling}
@@ -84,7 +94,7 @@ yambol_region_values <- Y_elev %>%
 
 yambol_region_densities <- foreach::foreach(n = 1:99, .combine = rbind) %do% {
   yambol_region_values %>%
-    sample(nrow(Yam_mounds),
+    sample(nrow(Yam_mnds),
            replace = FALSE) %>%
     density(from = 50,
             to = 1250,
@@ -144,8 +154,7 @@ g <- ggplot() +
                color = "red")
 g
 ```
-This plot is not much more revealing than the histogram we started with.  The landscape data (represented by the black band enclosed by gray confidence interval) is right skewed and has a single main mode at c. 150 masl. The mound data has a much more tight and higher mode at c. 160 masl, and is also right skewed. From this visual investigation alone, we can not see whether the mound locations differ from a random sample taken from the Yambol region landscape as a whole.
-
+This plot is not much more revealing than the histogram we started with.  The landscape data (represented by the black band enclosed by gray confidence interval) is right skewed and has a single main mode at c. 150 masl. The mound data has a much more tight and higher mode at c. 160 masl, and is also right skewed with some wobbling on and off the confidence interval on the landscape band.  From this visual investigation alone, we can not see whether the mound locations differ from a random sample taken from the Yambol region landscape as a whole. 
 
 ##..then create an interactive html widget using plotly.
 ```{r ggplotly, eval=false}

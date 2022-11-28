@@ -1,0 +1,183 @@
+---
+title: "Bootstrap Analysis of Mound prominence"
+author: "Adela Sobotkova"
+date: "updated`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+# Bootstrapping Mound prominence in Yambol Region 
+This script is inspired by Kyle Bocinsky's comparison of cell tower elevation with background terrain in this chapter https://benmarwick.github.io/How-To-Do-Archaeological-Science-Using-R/landscape-based-hypothesis-testing-in-r.html
+. I have adapted the script to burial mounds in Yambol and adjusted the wrangling of the monte carlo results to compensate for older libraries.
+ 
+ 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Clip prominence raster by Yambol region boundary
+```{r get-elev}
+Y_elev <- raster("../output_data/Yelev32635.tif")
+plot(Y_elev)
+```
+
+## Random sample of prominence
+```{r}
+random <- sampleRandom(na.omit(data_Y$TPI), 1050) # generate data on TRI sample as big as the mounds, but it is not quite prominence
+randompoints <- sf::st_sample(Y_region, size = 5000) # generate sample as big as the mounds
+plot(Y_region$geometry);plot(randompoints, add= T)
+
+```
+## Calculate prom values
+
+```{r prominence}
+library(FSA) # we need an additional library for the perc() function
+?perc()      # check the fce is here
+randompoints$prom <- raster::extract(Y_elev,# raster containing elevation data
+                        st_sf(randompoints), # centroids of mounds
+                        buffer = 250, # actual buffer size in crs units, in this case 250m  or ca 7x7 cells around kernel
+                        fun = function(x){perc(x,x[length(x)/2],"lt", na.rm = FALSE, digits = 2)})
+
+hist(randompoints$prom)
+    
+```
+
+## Plot results
+
+now with ggplot
+```{r plot-prom}
+ggplot(data = Yam_mnds) +
+  geom_histogram(aes(prom250mbuff), bins = 50, fill = "darkgreen", alpha = 0.6)+
+  geom_histogram(aes(randompoints$prom %>% sample(1050, replace = FALSE)), bins = 50, alpha = 0.5, fill = "hotpink", colour = "pink")+
+  labs(x = "Prominence",
+          y = "Frequency")+
+  theme_bw()
+```
+
+There seems to be a considerable overlap, but we only compared the mound prominence to one sample of regional prominence. So let's try with a larger sample size.
+
+## Calculate kernel density curves for sites and landscape
+We can calculate kernel density curves using the density() function available in all R installations. This code block gets a little complicated. The first section is straightforward: we estimate the probability density for all prominence between 0 and 100 percent (within the province). The second section is a bit more complicated: we estimate probability densities for 99 random samples from the prominence data. (You would probably want to draw more resamples than this in a real analysis). Each sample is of the same number of sites as there are mounds. This is called Monte Carlo resampling. The code section performs the sampling, then calculates a 95% confidence interval for the sampled data using quantiles. We will use the foreach package (and its `%do%` function) to repeat and output the resampling.
+
+
+```{r monte-carlo-begin}
+
+# Calculate the mound densities
+
+library(foreach)
+library(purrrlyr)
+
+#note the exposition pipe operator $, which works as dataframe$variable
+mounds_densities <- Yam_mnds %$%  
+  prom250mbuff %>%
+  density(from = 0,
+            to = 100,
+            n = 1201) %>% 
+   broom::tidy() %>%
+   tibble::as_tibble() %>%
+  dplyr::mutate(y = y * 1201) %>%
+  dplyr::rename(Prominence = x,
+                Frequency = y)
+
+```
+
+```{r region-densities}
+# Calculate possible densities across the study area using resampling
+# -------------------------
+# Load the NED prominence into memory for fast resampling
+yambol_region_values <- na.omit(randompoints$prom)
+# Draw 99 random samples, and calculate their densities
+
+yambol_region_densities <- foreach::foreach(n = 1:99, .combine = rbind) %do% {
+  yambol_region_values %>%
+    sample(nrow(Yam_mnds),
+           replace = FALSE) %>%
+    density(from = 0,
+            to = 100,
+            n = 1201) %>% 
+    broom::tidy() %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(y = y * 1201)
+} %>%
+  dplyr::group_by(x)
+
+# Check the interim dataset
+head(yambol_region_densities)
+
+# Calculate quantiles
+yambol_densities <- yambol_region_densities %>%
+  purrrlyr::by_slice(function(x){
+    quantile(x$y, probs = c(0.025, 0.5, 0.975)) %>%
+      t() #%>%
+      #broom::tidy()  
+    }, .collate = "rows") #%>%
+  #magrittr::set_names(c("Prominence", "Lower CI", "Frequency", "Upper CI"))
+
+# Rename and widen the quantiles dataset
+yambol_densities$names <- rep(c("Lower CI", "Median", "Upper CI"), 1201)
+yambol_densities_wide <- yambol_densities %>% pivot_wider(names_from = names,
+                     values_from = .out,
+                     values_fill = list(.out = NA))
+names(yambol_densities_wide)[1] <- "Prominence"
+head(yambol_densities_wide)
+
+# Rename original densities
+yambol_region_densities <- yambol_region_densities %>% 
+  dplyr::rename(Prominence = x,
+                Frequency = y)
+
+```
+
+## Plot the kernel density curves
+We’ll perform a statistical test on the mounds and resampled prominence data in a minute, but first it is just as helpful to view a graph of the two data sets. Like all things, R has many different ways of graphing data, but the ggplot2 package from Hadley Wickam is fast becoming the framework-du jour for graphics in R. The plotly package can be used to effortlessly convert ggplot2 graphs into interactive HTML graphics. ggplot2 uses a pipe-like system for building graphs, where graphical elements are appended to one-another using the + operator. Hover over the plot to explore it interactively.
+
+
+## Plot both distributions using ggplot2
+```{r plot-densities}
+g <- ggplot() +
+  geom_line(data = yambol_region_densities,
+            mapping = aes(x = Prominence,
+                          y = Frequency),
+            col = "lightgrey") +
+  # geom_ribbon(data = yambol_densities_wide,
+  #             mapping = aes(x = Prominence,
+  #                           ymin = `Lower CI`,
+  #                           ymax = `Upper CI`),
+  #             col = "darkgrey", size = 1.5,
+  #             alpha = 0.5) +
+  geom_line(data = mounds_densities,
+               mapping = aes(x = Prominence,
+                             y = Frequency),
+               color = "red", size=2)+
+  theme_bw()+
+  labs(colour = "Legend")
+g
+```
+This plot is not much more revealing than the histogram we started with.  The landscape data (represented by the black band enclosed by gray confidence interval) is right skewed and has a single main mode at c. 150 masl. The mound data has a much more tight and higher mode at c. 160 masl, and is also right skewed with some wobbling on and off the confidence interval on the landscape band.  From this visual investigation alone, we can not see whether the mound locations differ from a random sample taken from the Yambol region landscape as a whole. 
+
+##..then create an interactive html widget using plotly.
+```{r ggplotly, eval=false}
+install.packages("ggplotly")
+install.packages("R")
+library(ggplotly)
+
+ggplotly(g)# Create the HTML widget
+```
+

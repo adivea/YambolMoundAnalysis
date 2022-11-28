@@ -21,13 +21,20 @@ plot(Y_elev)
 data_Y<-as.data.frame(Y_elev) 
 
 # generate slope, aspect and flowdir data
-Y_aspslope <- raster::terrain(Y_elev, opt = c('slope','aspect'), neighbors = 8, unit= 'degrees')
-Y_flow <-  raster::terrain(Y_elev, opt ='flowdir', neighbors = 8)
+Y_aspslope <- brick("../output_data/Yaspslope.tif")
+Y_flow <-  brick("../output_data/YflowroughTRI.tif") # third element is TPI
 
+Y_aspslope <- crop(Y_aspslope, Y_region)
+Y_aspslope <- mask(Y_aspslope, Y_region)
+Y_flow <- crop(Y_flow, Y_region)
+Y_flow <- mask(Y_flow, Y_region)
 
 # extract slope, aspect and flowdir into a table
 data_Y <- cbind(data_Y, as.data.frame(Y_aspslope), as.data.frame(Y_flow))
-## Extract data from Yambol Province raster
+
+# peek
+names(data_Y) <- c("elev","slope","aspect","flow","roughness","TPI","TRI")
+saveRDS(data_Y,"../output_data/Yam_envirodata.rds")
 ```
 
 
@@ -35,32 +42,37 @@ data_Y <- cbind(data_Y, as.data.frame(Y_aspslope), as.data.frame(Y_flow))
 ## Process background raster values
 ..into binned frequencies for frequency comparison. First, we explore the ranges and prepare the bins
 
-```{r}
+```{r plot-hist-bckg}
 # explore the ranges
-hist(data_Y$Yelev32635)
+par(mfrow=c(2,3))
+hist(data_Y$elev)
 hist(data_Y$slope)
+hist(data_Y$roughness)
 hist(data_Y$aspect)
-hist(data_Y$flowdir)
-
+hist(data_Y$TPI)
+hist(data_Y$TRI)
 ```
-Now , seeing what the min and max values are, we prepare te number sequences
-```{r}
+Now , seeing what the min and max values are, we prepare the number sequences
+```{r bins-prep}
 ## Prepare number sequences for binning of actual raster values
-elev_breaks <- c(0,100,200,300,400,500,600,700) # use for elevation
+elev_bin <- c(0,100,200,300,400,500,600,700) # use for elevation
 slope_bin <- c(0,2,4,6,8,10,20,60) #for slope values
-aspect_bin <- c(0, 45, 135, 225, 315, 360)
-
+aspect_bin <- c(0, 45, 135, 225, 315, 360) # for degrees
+roughness_bin <- c(0,2,4,6,8,10,20,60) # roughness resembles slope
+flow_bin <- c(0,20,40,60,80,100,120,140) # flow is odd
+TPI_bin <- c(-5,-2.5,-1,0,1,2.5,5) # TPI is both negative and positive
+TRI_bin <- c(0,2,4,6,8,10) # TRI seems a truncated version of TPI and 
 ```
 
 Now for each data category, we create the bins using the `cut()` function and `dig.lab=number` of numbers we don't want abbreviated
 
 ## Bin Elevation, Slope, Aspect and Flow direction
-```{r}
+```{r binning}
 print("Calculating frequencies for ASTER elevation, slope and aspect data and binning them")
 ```
 
 ### Eliminate missing values
-```{r}
+```{r missing}
 # Check for missing data and eliminate (although it is not entirely necessary)
 is.na(data_Y$Yelev32635)
 e <- na.omit(data_Y$Yelev32635)
@@ -71,21 +83,21 @@ tapply(e,cut(e,elev_breaks),median)
 tapply(data_Y$slope,cut(data_Y$slope,breaks=slope_bin),median)
 ```
 ### Bin Elevation values
-```{r}
+```{r bin-elev}
 elevbin <- cut(e,breaks = elev_breaks,dig.lab = 5) ## very important to make thousands appear not as scientific notations
 df_yam_e <- data.frame(table(elevbin))   # calculate frequency via table() and convert to dataframe for printing
 df_yam_e
 ```
 
 ### Bin Slope values
-```{r}
+```{r bin-slope}
 (slopebin <- cut(data_Y$slope,breaks=slope_bin))
 df_yam_sl <- data.frame(table(slopebin))
 df_yam_sl
 ```
 
 ### Bin Aspect values
-```{r}
+```{r bin-aspect}
 aspectbin_yam <- cut(data_Y$aspect, breaks=aspect_bin)
 df_yam_asp <- data.frame(table(aspectbin_yam))
 df_yam_asp
@@ -93,11 +105,52 @@ df_yam_asp
 
 ### Bin Flowdir values
 ```{r}
-flowbin_yam <- cut(data_Y$flowdir, breaks=aspect_bin)
-df_yam_fl <- data.frame(table(aspectbin_yam))
+flowbin_yam <- cut(data_Y$flow, breaks=flow_bin)
+df_yam_fl <- data.frame(table(flowbin_yam))
 df_yam_fl
 ```
+
+### Maybe make a function instead? NEW
+```{r}
+landscape_bins <- list(elev_bin, slope_bin, aspect_bin,flow_bin, roughness_bin, TPI_bin, TRI_bin)
+
+
+result <- list()
+
+landscape_df <- data.frame(matrix(nrow = nrow(data_Y), ncol = 7))
+colnames(landscape_df) <- colnames(data_Y)
+
+for (i in seq_along(data_Y)){
+  landscape_df[i] <- cut(data_Y[[i]], breaks=landscape_bins[[i]], dig.lab=5)
+  result[[i]] <- data.frame(table(landscape_df[i]))
+  
+}
+
+result[[7]]
+df
+```
+
 ## Bin Mound environmental variables
+## function perhaps? - NEW
+```{r}
+prom_bin <- c(0,5,10,20,50,80,90,95,100)
+prom_bin <- c(seq(0,100,by =5))
+mound_bins <- list(elev_bin, slope_bin, aspect_bin,prom_bin, TPI_bin, TRI_bin, roughness_bin)
+
+mnd_result <- list()
+
+df <- data.frame(matrix(nrow = nrow(Yam_mnds), ncol = 7))
+colnames(df) <- colnames(Yam_mnds)[12:18]
+Yam_subset <- Yam_mnds[,12:18]
+
+for (i in seq_along(df)){
+ df[i] <- cut(Yam_subset[[i]], breaks=mound_bins[[i]], dig.lab=5)
+  mnd_result[[i]] <- data.frame(table(df[i]))
+  
+}
+mnd_result[[4]]
+```
+
 ### ASTER Mound data 
 ```{r}
 elevbins_mnd <- cut(Yam_mnds$elevAster,breaks=elev_breaks,dig.lab=5)
