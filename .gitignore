@@ -1,3 +1,5 @@
+*cache/
+*files/
 .Rproj.user
 .Rhistory
 .RData
