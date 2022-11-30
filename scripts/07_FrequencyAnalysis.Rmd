@@ -1,0 +1,292 @@
+---
+title: "Locational choices of mound builders seen through frequency analysis"
+author: "Adela Sobotkova"
+date: "2022-11-10"
+output: html_document
+---
+
+This script attempts to approach the locational preferences of burial mound builders in Yambol from a different perspective, one that compares the frequency of mounds in different elevation bands with the frequency of this particular band in the Yambol region landscape. My hope is that this approach will be slightly more sensitive to the actual occurrence of mounds in the landscape than the Monte Carlo bootstrap in 02-03 scripts
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Extract regional background data from Yambol Province raster
+
+We extract elevation, and create and extract slope, aspect and flowdir from the Aster cropped to the Yambol province boundaries, so as to have baseline/background data for frequency analysis
+```{r region-extract}
+# extract elevation
+plot(Y_elev)
+data_Y<-as.data.frame(Y_elev) 
+
+# generate slope, aspect and flowdir data
+Y_aspslope <- brick("../output_data/Yaspslope.tif")
+Y_flow <-  brick("../output_data/YflowroughTRI.tif") # third element is TPI
+
+Y_aspslope <- crop(Y_aspslope, Y_region)
+Y_aspslope <- mask(Y_aspslope, Y_region)
+Y_flow <- crop(Y_flow, Y_region)
+Y_flow <- mask(Y_flow, Y_region)
+
+# extract slope, aspect and flowdir into a table
+data_Y <- cbind(data_Y, as.data.frame(Y_aspslope), as.data.frame(Y_flow))
+
+# peek
+names(data_Y) <- c("elev","slope","aspect","flow","roughness","TPI","TRI")
+saveRDS(data_Y,"../output_data/Yam_envirodata.rds")
+```
+
+
+
+## Process background raster values
+..into binned frequencies for frequency comparison. First, we explore the ranges and prepare the bins
+
+```{r plot-hist-bckg}
+# explore the ranges
+par(mfrow=c(2,3))
+hist(data_Y$elev)
+hist(data_Y$slope)
+hist(data_Y$roughness)
+hist(data_Y$aspect)
+hist(data_Y$TPI)
+hist(data_Y$TRI)
+```
+Now , seeing what the min and max values are, we prepare the number sequences
+```{r bins-prep}
+## Prepare number sequences for binning of actual raster values
+elev_bin <- c(0,100,200,300,400,500,600,700) # use for elevation
+slope_bin <- c(0,2,4,6,8,10,20,60) #for slope values
+aspect_bin <- c(0, 45, 135, 225, 315, 360) # for degrees
+roughness_bin <- c(0,2,4,6,8,10,20,60) # roughness resembles slope
+flow_bin <- c(0,20,40,60,80,100,120,140) # flow is odd
+TPI_bin <- c(-5,-2.5,-1,0,1,2.5,5) # TPI is both negative and positive
+TRI_bin <- c(0,2,4,6,8,10) # TRI seems a truncated version of TPI and 
+```
+
+Now for each data category, we create the bins using the `cut()` function and `dig.lab=number` of numbers we don't want abbreviated
+
+## Bin Elevation, Slope, Aspect and Flow direction
+```{r binning}
+print("Calculating frequencies for ASTER elevation, slope and aspect data and binning them")
+```
+
+### Eliminate missing values
+```{r missing}
+# Check for missing data and eliminate (although it is not entirely necessary)
+is.na(data_Y$Yelev32635)
+e <- na.omit(data_Y$Yelev32635)
+
+# Test bin creation with median value
+
+tapply(e,cut(e,elev_breaks),median)
+tapply(data_Y$slope,cut(data_Y$slope,breaks=slope_bin),median)
+```
+### Bin Elevation values
+```{r bin-elev}
+elevbin <- cut(e,breaks = elev_breaks,dig.lab = 5) ## very important to make thousands appear not as scientific notations
+df_yam_e <- data.frame(table(elevbin))   # calculate frequency via table() and convert to dataframe for printing
+df_yam_e
+```
+
+### Bin Slope values
+```{r bin-slope}
+(slopebin <- cut(data_Y$slope,breaks=slope_bin))
+df_yam_sl <- data.frame(table(slopebin))
+df_yam_sl
+```
+
+### Bin Aspect values
+```{r bin-aspect}
+aspectbin_yam <- cut(data_Y$aspect, breaks=aspect_bin)
+df_yam_asp <- data.frame(table(aspectbin_yam))
+df_yam_asp
+```
+
+### Bin Flowdir values
+```{r}
+flowbin_yam <- cut(data_Y$flow, breaks=flow_bin)
+df_yam_fl <- data.frame(table(flowbin_yam))
+df_yam_fl
+```
+
+### Maybe make a function instead? NEW
+```{r}
+landscape_bins <- list(elev_bin, slope_bin, aspect_bin,flow_bin, roughness_bin, TPI_bin, TRI_bin)
+
+
+result <- list()
+
+landscape_df <- data.frame(matrix(nrow = nrow(data_Y), ncol = 7))
+colnames(landscape_df) <- colnames(data_Y)
+
+for (i in seq_along(data_Y)){
+  landscape_df[i] <- cut(data_Y[[i]], breaks=landscape_bins[[i]], dig.lab=5)
+  result[[i]] <- data.frame(table(landscape_df[i]))
+  
+}
+
+result[[7]]
+df
+```
+
+## Bin Mound environmental variables
+## function perhaps? - NEW
+```{r}
+prom_bin <- c(0,5,10,20,50,80,90,95,100)
+prom_bin <- c(seq(0,100,by =5))
+mound_bins <- list(elev_bin, slope_bin, aspect_bin,prom_bin, TPI_bin, TRI_bin, roughness_bin)
+
+mnd_result <- list()
+
+df <- data.frame(matrix(nrow = nrow(Yam_mnds), ncol = 7))
+colnames(df) <- colnames(Yam_mnds)[12:18]
+Yam_subset <- Yam_mnds[,12:18]
+
+for (i in seq_along(df)){
+ df[i] <- cut(Yam_subset[[i]], breaks=mound_bins[[i]], dig.lab=5)
+  mnd_result[[i]] <- data.frame(table(df[i]))
+  
+}
+mnd_result[[4]]
+```
+
+### ASTER Mound data 
+```{r}
+elevbins_mnd <- cut(Yam_mnds$elevAster,breaks=elev_breaks,dig.lab=5)
+df_mnd_e <- data.frame(table(elevbins_mnd))
+df_mnd_e
+
+slopebin_mnd <- cut(Yam_mnds$slopeAster, breaks = slope_bin)
+(df_mnd_sl <- data.frame(table(slopebin_mnd)))
+
+aspectbin_mnd <- cut(Yam_mnds$aspectAster, breaks = aspect_bin)
+(df_mnd_as <- data.frame(table(aspectbin_mnd)))
+```
+
+## Generate Aster frequences and output into a table
+```{r combine-results}
+print("Combining outputs into tables")
+```
+
+### Elevation
+
+```{r}
+Elev_freq <- cbind(df_yam_e,df_mnd_e[,2])
+Elev_freq
+
+colnames(Elev_freq) <-c("Elevation Bins","Yambol Region","Mounds")
+head(Elev_freq)
+```
+
+
+### Slope
+
+```{r}
+Slope_freq <- cbind(df_yam_sl, df_mnd_sl[,2])
+Slope_freq
+colnames(Slope_freq) <-c("Slope Bins (degrees)","Yambol Region","Mounds")
+head(Slope_freq)
+```
+
+### Flowdir
+
+```{r eval=FALSE}
+Flow_freq <- cbind(df_yam_fl, df_mnd_fl[,2])
+Flow_freq
+colnames(Aspect_freq) <-c("Aspect Bins (azimuth)","Yambol Region","Mounds")
+head(Aspect_freq)
+
+```
+
+
+### Write Frequencies to file
+```{r}
+print("Writing results to file")
+
+if(dir.exists("../output_data/")) {
+   print("Output directory detected. Carrying on...")} else {
+   dir.create("../output_data")
+     }
+  
+write.csv(Elev_freq,"../output_data/YamMapMndElevationFrequency.csv")
+write.csv(Slope_freq,"../output_data/YamMapMndSlopeFrequency.csv")
+write.csv(Aspect_freq,"../output_data/YamMapMndAspectFrequency.csv")
+
+print("All done with Frequency calculations. Proceeding onto Indeces")
+```
+
+Now that we have calculated the frequencies, let's see how they compare to one another.Are the mound locations dramatically different from the overall distribution of different natural aspects in the landscape?
+
+## Indeces
+
+###  Calculate Mound Location index in relief
+An index is a number between 0-1 that marks the proportionality of mound locations in a given elevation/aspect or slope compared to the presence of this phenomenon in the landscape.
+
+## Elevation 
+```{r}
+print("Creating an index of elevation frequencies for mounds")
+
+ElevationResult <- Elev_freq %>% 
+  mutate(AsterArea_km = `Yambol Region` *(0.027^2), 
+         Yam_Percent =`Yambol Region`/sum(`Yambol Region`), 
+         MoundsExpected =sum(Mounds)*Yam_Percent,
+         MoundIndex = Mounds/MoundsExpected) %>% 
+  mutate_at(4:7,round,2)
+
+print("Printing ElevationResult to file.")
+ElevationResult
+write_csv(ElevationResult,"../output_data/ElevationIndeces.csv")
+
+
+```
+## Slope 
+```{r}
+print("Creating an index of slope frequencies for mounds")
+
+SlopeResult <- Slope_freq %>% 
+  mutate(AsterArea_km = `Yambol Region` *(0.027^2), 
+         Yam_Percent =`Yambol Region`/sum(`Yambol Region`), 
+         MoundsExpected =sum(Mounds)*Yam_Percent,
+         MoundIndex = Mounds/MoundsExpected) %>% 
+  mutate_at(4:7,round,2) 
+  
+
+print("Printing Slope Result to file.")
+SlopeResult
+write_csv(SlopeResult,"../output_data/SlopeIndeces.csv")
+
+```
+
+## Aspect 
+```{r}
+print("Creating an index of aspect frequencies for mounds")
+
+Aspect_freq
+Aspect <- c("North (315-45)" , "East (45-135)", "South (135-225)", "West (225-315)")
+
+Aspect_final <- Aspect_freq %>%
+  select(2:3) %>% 
+  rbind(Aspect_freq[1,2:3] + Aspect_freq[5,2:3]) %>%   # adding row 1 and 4 as they are each half of North azimuth
+  slice(c(2:4,6)) %>%  # drop rows 1 and 4 and replace by new row 6 for North
+  cbind(Aspect) # add labels
+Aspect_final
+  
+AspectResult <- Aspect_final %>% 
+ mutate(AsterArea_km = `Yambol Region` *(0.027^2), 
+         Yam_Percent =`Yambol Region`/sum(`Yambol Region`), 
+         MoundsExpected =sum(Mounds)*Yam_Percent,
+         MoundIndex = Mounds/MoundsExpected) %>% 
+  mutate_at(5:7,round,2) 
+ 
+AspectResult
+
+```
+
+```{r}
+print("Printing Aspect Result to file.")
+write_csv(AspectResult,"../output_data/AspectIndeces.csv")
+print("Calculation completed; Check Output_data folder for results")
+```
+
+
