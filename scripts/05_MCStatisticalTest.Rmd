@@ -9,26 +9,30 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This script tests the robustness of the MC results from script 02 with parametric and non-parametric tests.
+This script tests the robustness of the MC results from scripts 03 and 04 with parametric and non-parametric tests. You need to run these scripts to create digital objects analyzed in this script.
 
 ## Mann-Whitney U test comparing non-normal distributions
 
-In the previous test we saw that the distributions were fairly similar. 
-Let us try two different tests to see if the mound locations could be a random sample of locations from the study area.
-First, we shall try a simple t-test and second, we will use the nonparametric Mann-Whitney U test (also known as a Wilcoxon test, used for distributions that are not statistically normal).
+In the `03_BootstrapElevation` and `04_BootstrapProminence.Rmd` we saw that the distributions were fairly similar. 
+Let us try two different tests to see if the ancient mound builders selected mound locations randomly? The question we aim to answer is: could the mounds be a random sample of locations from the study area?
+
+In each test, the landscape values are our control group while the mound values comprise an experimental group that we are testing.
 
 We are testing whether the mound locations were likely a random sample of locations drawn from our study area. Again, we’ll use Monte Carlo resampling to generate confidence intervals for our test statistic. Finally, we will output the test data to a comma-separated values (CSV) file for inclusion in external reports.
 
 
 ## Student's T-test (for large normal data)
 
-```{r}
-# Draw 999 random samples from the region, and compute two-sample Wilcoxon tests (Mann-Whitney U tests)
-Yambol_mound_TT <- foreach(n = 1:999, .combine = rbind) %do% {
+First, we shall try a t-test (a basic test that checks for independence between two independent samples selected from a normal distribution). This is primarily applicable to the prominence data, as its distribution resembles a normal one. 
+
+### Prominence
+```{r t-test-prom}
+# Draw 999 random samples from the region, and compute a t-test
+YMound_prom_TT <- foreach(n = 1:999, .combine = rbind) %do% {
   Yambol_sample <- yambol_region_values %>%
-    sample(nrow(Yam_mounds),
+    sample(nrow(Yam_mnds),
            replace = FALSE) %>%
-    t.test(x = Yam_mounds$elevAster,
+    t.test(x = Yam_mnds$prom250mbuff,
                 y = .,
                 alternative = "greater") %>%
    broom::tidy() %>%
@@ -37,8 +41,8 @@ Yambol_mound_TT <- foreach(n = 1:999, .combine = rbind) %do% {
   dplyr::select(statistic, p.value)
 
 # Get the median test statistic and 95% confidence interval
-Yambol_mound_TT <- foreach::foreach(prob = c(0.025,0.5,0.975), .combine = rbind) %do% {
-  Yambol_mound_TT %>%
+YMound_prom_TT <- foreach::foreach(prob = c(0.025,0.5,0.975), .combine = rbind) %do% {
+  YMound_prom_TT %>%
       dplyr::summarise_all(quantile, probs = prob)
 } %>%
   t() %>%
@@ -46,19 +50,52 @@ Yambol_mound_TT <- foreach::foreach(prob = c(0.025,0.5,0.975), .combine = rbind)
   magrittr::set_rownames(c("U statistic","p-value"))
 
 
-write.csv(Yambol_mound_TT, "../output_data/TT_results.csv")  
+write.csv(YMound_prom_TT , "../output_data/TT_prom_presults.csv")  
 
-Yambol_mound_TT
+YMound_prom_TT 
+```
+### Elevation
+
+```{r t-test-elev}
+# Draw 999 random samples from the region, and compute a t-test
+YMound_elev_TT <- foreach(n = 1:999, .combine = rbind) %do% {
+  Yambol_sample <- yambol_regionelev_values %>%
+    sample(nrow(Yam_mnds),
+           replace = FALSE) %>%
+    t.test(x = Yam_mnds$elevAster,
+                y = .,
+                alternative = "greater") %>%
+   broom::tidy() %>%
+   tibble::as_tibble()
+}%>%
+  dplyr::select(statistic, p.value)
+
+# Get the median test statistic and 95% confidence interval
+YMound_elev_TT <- foreach::foreach(prob = c(0.025,0.5,0.975), .combine = rbind) %do% {
+  YMound_elev_TT %>%
+      dplyr::summarise_all(quantile, probs = prob)
+} %>%
+  t() %>%
+  magrittr::set_colnames(c("Lower CI","Median","Upper CI")) %>%
+  magrittr::set_rownames(c("U statistic","p-value"))
+
+
+write.csv(YMound_elev_TT , "../output_data/TT_elev_presults.csv")  
+
+YMound_elev_TT 
 ```
 
-### Mann-Whitney non-parametric test (for small non-parametric data)
-```{r}
+## Mann-Whitney non-parametric test (for small non-parametric data)
+
+Second, we will use the nonparametric Mann-Whitney U test (also known as a Wilcoxon test). This is used mostly for distributions that are not statistically normal, such as the elevation data, which are right-skewed and non-normal in their distribution. Again, we shall run the test also for prominence, just to see how it comes out.
+
+```{r mw-test-prom}
 # Draw 999 random samples from the region, and compute two-sample Wilcoxon tests (Mann-Whitney U tests)
-Yambol_mound_MWU <- foreach(n = 1:999, .combine = rbind) %do% {
+YMound_prom_MWU <- foreach(n = 1:999, .combine = rbind) %do% {
   Yambol_sample <- yambol_region_values %>%
-    sample(nrow(Yam_mounds),
+    sample(nrow(Yam_mnds),
            replace = FALSE) %>%
-    wilcox.test(x = Yam_mounds$elevAster,
+    wilcox.test(x = Yam_mnds$prom250mbuff,
                 y = .,
                 alternative = "greater",
                 exact = FALSE) %>%
@@ -68,8 +105,8 @@ Yambol_mound_MWU <- foreach(n = 1:999, .combine = rbind) %do% {
   dplyr::select(statistic, p.value)
 
 # Get the median test statistic and 95% confidence interval
-Yambol_mound_MWU <- foreach::foreach(prob = c(0.025,0.5,0.975), .combine = rbind) %do% {
-  Yambol_mound_MWU %>%
+YMound_prom_MWU <- foreach::foreach(prob = c(0.025,0.5,0.975), .combine = rbind) %do% {
+  YMound_prom_MWU %>%
       dplyr::summarise_all(quantile, probs = prob)
 } %>%
   t() %>%
@@ -78,17 +115,60 @@ Yambol_mound_MWU <- foreach::foreach(prob = c(0.025,0.5,0.975), .combine = rbind
 
 # Write output table as a CSV
 
-write_csv(Yambol_mound_MWU, "../output_data/Mann_Whitney_results.csv")
+write.csv(YMound_prom_MWU, "../output_data/Mann_Whitney_prom_results.csv")
 
-Yambol_mound_MWU
+YMound_prom_MWU
 ```
+
+### Elevation
+```{r mw-test-elev}
+# Draw 999 random samples from the region, and compute two-sample Wilcoxon tests (Mann-Whitney U tests)
+YMound_elev_MWU <- foreach(n = 1:999, .combine = rbind) %do% {
+  Yambol_sample <- yambol_regionelev_values %>%
+    sample(nrow(Yam_mnds),
+           replace = FALSE) %>%
+    wilcox.test(x = Yam_mnds$elevAster,
+                y = .,
+                alternative = "greater",
+                exact = FALSE) %>%
+   broom::tidy() %>%
+   tibble::as_tibble()
+}%>%
+  dplyr::select(statistic, p.value)
+
+# Get the median test statistic and 95% confidence interval
+YMound_elev_MWU <- foreach::foreach(prob = c(0.025,0.5,0.975), .combine = rbind) %do% {
+  YMound_elev_MWU %>%
+      dplyr::summarise_all(quantile, probs = prob)
+} %>%
+  t() %>%
+  magrittr::set_colnames(c("Lower CI","Median","Upper CI")) %>%
+  magrittr::set_rownames(c("U statistic","p-value"))
+
+# Write output table as a CSV
+
+write.csv(YMound_elev_MWU, "../output_data/Mann_Whitney_elev_results.csv")
+
+```
+
+
+## Results
+
+```{r results-prominence}
+# T-test Prominence results
+YMound_prom_TT 
+
+```
+
+```{r results-elevation}
+# Mann-Whitney Elevation Test results
+YMound_elev_MWU
+```
+
 ## Conclusion
 
-Both tests show that the elevation of mound locations does not diverge from the regional sample of elevations. Kuna's style frequency analysis per elevation band may be more sensitive to locational preferences than the bootstrap test!  Alternatively, test the prominence of the mounds against background prominence (harder to calculate perhaps, but doable). 
-
-### To does
-Adapt 'moundsforIli     ja" script into a 04 markdown ;)
-Develop prominence calculation into a 05 markdown
+The T-test shows that the prominence simulation results are robust except in the upper CI boundary, which is not to be trusted. Mann-Whitney test of simulated elevation data show the difference here is not very robust except in the lower confidence interval. This means that while there are clear differences between the mound and landscape distributions of elevation, the former do not diverge from the regional sample significantly. In case of prominence, the mound signal is more salient and different from the background, but the difference in upper ranges is also undermined by statistically weak CI boundary. 
+What now? The Monte Carlo modelling shows us the weakness of using two dependent samples (each drawn from the same landscae). The only other analysis that we can compare to now is Milan Kuna's (2009) style frequency analysis per elevation band - it may be more sensitive to locational preferences than the bootstrap test.  
 
 ```{r}
 sessionInfo()

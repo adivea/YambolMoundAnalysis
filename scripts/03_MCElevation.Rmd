@@ -1,0 +1,162 @@
+---
+title: "Bootstrap analysis of burial mound elevations"
+author: "Adela Sobotkova"
+date: "updated `r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+library(rmdformats)
+library(knitr)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+## Bootstrapping mound elevations in the Yambol Province 
+This script is inspired by Kyle Bocinsky's comparison of cell tower elevations with background terrain in this *How to do archaeological science using R* [chapter]( https://benmarwick.github.io/How-To-Do-Archaeological-Science-Using-R/landscape-based-hypothesis-testing-in-r.html). I have adapted the script to burial mounds elevation in the Yambol Province in SE Bulgaria and adjusted the wrangling of the simulated results to compensate for older libraries.
+ 
+```{r libraries, include=FALSE}
+library(tidyverse)
+library(raster)
+library(sf)
+```
+
+## Load mounds and elevation raster clipped by Yambol region boundary
+```{r get-elev}
+Yam_mnds <- readRDS("../output_data/Yam_mnds.rds")
+Y_elev <- raster("../output_data/large/Yelev32635.tif")
+plot(Y_elev, main = " Yambol region with burial mound distribution");plot(Yam_mnds$geometry, cex = sqrt(Yam_mnds$HeightMax), add= T)
+```
+
+## Random sample of regional elevations
+```{r sample-region-elev}
+random <- sampleRandom(Y_elev, 1050) # generate sample as big as the mounds
+
+hist(Yam_mnds$elevAster, breaks = 35,  main = "Histogram of random Yambol region (pink) \n and actual mound location (grey) elevations", xlim = c(50,600), xlab = "Elevation")
+hist(random, col = "pink", breaks = 35, add = T, alpha = 0.8)
+```
+let's look at the data with `ggplot`
+```{r plot-geom-hist}
+Yam_mnds$random <- sampleRandom(Y_elev, 1050) # ggplot wants a dataframe, not a vector
+
+ggplot(data = Yam_mnds) +
+  geom_histogram(aes(elevAster), bins = 50, fill = "darkgreen", alpha = 0.6)+
+  geom_histogram(aes(random), bins = 50, alpha = 0.5, fill = "hotpink", colour = "pink")+
+  labs(x = "Elevation",
+          y = "Frequency")+
+  theme_bw()
+```
+
+There seems to be a considerable overlap, but we only compared the mound elevations (green) to one sample of regional elevations (pink). So let's try with a larger sample size.
+
+## Calculate kernel density curves for mounds and the landscape
+We can calculate kernel density curves using the `density() `function available in all R installations. This code block gets a little complicated. The first section is straightforward: we estimate the probability density for all elevations between 50 and 600 masl (the range within the Yambol region). The second section is a bit more complicated: we estimate probability densities for 99 random samples from the elevation data. (You would probably want to draw more resamples than this in a real analysis). Each sample is of the same number of sites as there are mounds. This is called Monte Carlo resampling. The code section performs the sampling, then calculates a 95% confidence interval for the sampled data using quantiles. We will use the `foreach` package (and its `%do%` function) to repeat and output the resampling.
+
+
+```{r monte-carlo-gambling}
+
+# Calculate the mound densities
+
+library(foreach)
+library(purrrlyr)
+
+
+mounds_densities <- Yam_mnds %$%
+  elevAster %>%
+  density(from = 50,
+            to = 600,
+            n = 1201) %>% 
+   broom::tidy() %>%
+   tibble::as_tibble() %>%
+  dplyr::mutate(y = y * 1201) %>%
+  dplyr::rename(Elevation = x,
+                Frequency = y)
+
+
+# Calculate possible densities across the study area using resampling
+# -------------------------
+# Load the NED elevations into memory for fast resampling
+yambol_regionelev_values <- Y_elev %>%
+  values() %>%
+  na.omit() # Drop all masked (NA) locations
+
+# Draw 99 random samples, and calculate their densities
+
+yambol_regionelev_densities <- foreach::foreach(n = 1:99, .combine = rbind) %do% {
+  yambol_regionelev_values %>%
+    sample(nrow(Yam_mnds),
+           replace = FALSE) %>%
+    density(from = 50,
+            to = 600,
+            n = 1201) %>% 
+    broom::tidy() %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(y = y * 1201)
+} %>%
+  dplyr::group_by(x)
+
+# Check the interim dataset
+head(yambol_regionelev_densities)
+
+# Calculate quantiles
+yambol_densities <- yambol_regionelev_densities %>%
+  purrrlyr::by_slice(function(x){
+    quantile(x$y, probs = c(0.025, 0.5, 0.975)) %>%
+      t() #%>%
+      #broom::tidy()  
+    }, .collate = "rows") #%>%
+  #magrittr::set_names(c("Elevation", "Lower CI", "Frequency", "Upper CI"))
+
+# Rename and widen the quantiles dataset
+yambol_densities$names <- rep(c("Lower CI", "Median", "Upper CI"), 1201)
+yambol_densities_wide <- yambol_densities %>% pivot_wider(names_from = names,
+                     values_from = .out,
+                     values_fill = list(.out = NA))
+names(yambol_densities_wide)[1] <- "Elevation"
+head(yambol_densities_wide)
+
+# Rename original densities
+yambol_regionelev_densities <- yambol_regionelev_densities %>% 
+  dplyr::rename(Elevation = x,
+                Frequency = y)
+
+```
+
+## Plot the kernel density curves
+We’ll perform a statistical test on the mounds and resampled elevation data in a minute, but first it is just as helpful to view a graph of the two data sets. Like all things, R has many different ways of graphing data, but the `ggplot` package from Hadley Wickham is basically the framework-du jour for graphics in R. `ggplot` uses a pipe-like system for building graphs, where graphical elements are appended to one-another using the `+` operator. Hover over the plot to explore it interactively.
+
+
+### Plot both distributions using ggplot
+```{r plot-densities}
+g <- ggplot() +
+  geom_line(data = yambol_regionelev_densities,
+            mapping = aes(x = Elevation,
+                          y = Frequency),
+            col = "lightgrey") +
+  geom_ribbon(data = yambol_densities_wide,
+              mapping = aes(x = Elevation,
+                            ymin = `Lower CI`,
+                            ymax = `Upper CI`),
+              col = "darkgrey",
+              alpha = 0.5) +
+  geom_line(data = mounds_densities,
+               mapping = aes(x = Elevation,
+                             y = Frequency),
+               color = "red", size = 2)+
+  theme_bw()
+g
+```
+This plot is not much more revealing than the histogram we started with.  The landscape data (represented by the dark-grey band enclosed by light-gray confidence interval) is right skewed and has a single main mode at c. 150 masl. The mound data has a much more tight and higher mode at c. 160 masl, and is also right skewed with some wobbling on and off the confidence interval on the landscape band.  From this visual investigation alone, we can not see whether the mound locations differ from a random sample taken from the Yambol region landscape as a whole. 
+
+
