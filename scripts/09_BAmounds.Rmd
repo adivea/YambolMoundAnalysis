@@ -13,14 +13,14 @@ library(sf)
 ## Load 2009-2022 data
 ```{r load-mounds}
 # Yambol mounds
-mnds <- read_sf("../output_data/Yam_mnds.shp")
-head(mnds)
+Yam_mnds <- readRDS("../output_data/Yam_mnds.rds")
+head(Yam_mnds)
 ```
 # Bronze Age mounds from Toshko
 ```{r bronze-age-m}
 # Take out the BA mounds from the FAIMS data
 bronze <- c(6009,8007,6010,8345,8346,8357, 8502, 8351, 9257)
-BA <- mnds %>% 
+BA <- Yam_mnds %>% 
   filter(TRAP %in% bronze)
 
 # Add the few mounds excavated before TRAP coverage >> these should be pulled out of the AOR dataset to get the Height, Diameter and other dimensions..
@@ -31,14 +31,173 @@ extras <- data.frame(place = c("Drazhevo",
                  Northing=c(4710935,4715730,4668279))
 extrasf <- st_as_sf(extras, coords =c("Easting", "Northing"), crs = 32635)
 
-BApoints <- rbind(st_coordinates(BA) ,st_coordinates(extrasf))
+library(plyr)
+
+BApoints <- rbind.fill(BA, extrasf)
+BAcoords <- rbind(st_coordinates(BA) ,st_coordinates(extrasf))
+BApoints <- cbind(BApoints, BAcoords)
+BApoints <- st_as_sf(BApoints, coords = c("X", "Y"), crs = 32635)
 ```
+
+## Look where these mounds are
+```{r}
+library(mapview)
+mapview(BApoints)
+```
+
+```{r}
+plot(Y_region$geometry, main = "Excavated Bronze Age mounds (red circles) \n and other mound locations in Yambol")
+plot(Yam_mnds$geometry, add = T);
+plot(BApoints$geometry, pch = 16, col = "red", add =T)
+
+```
+
+
+
+
+
+# Extract promience and elevation data from raster
+```{r}
+Y_elev <- raster("../output_data/large/Yelev32635.tif")
+Y_aspslope <- brick("../output_data/large/Yaspslope.tif")
+```
+
+
+# Extract raster values for BA mounds (elevation and prominence)
+Ideally, when grabbing the excavated mounds, I get the information from the AOR reports, so have as complete a record of the morphology as possible
+```{r sample-elev-aspect-slope-22}
+# Mound data
+BA_points <- BApoints %>% 
+  dplyr::select(-elevAster) %>% 
+  dplyr::select(-aspectAster) %>% 
+  dplyr::select(-prom250mbuff) %>% 
+  dplyr::select(-slopeAster)
+
+# Sample elevations at mound locations
+BApoints$elevAster <- raster::extract(Y_elev, st_coordinates(BApoints))
+
+# Extract values from slope/aspect rasters created in script 00
+BApoints$slopeAster <-  raster::extract(Y_aspslope$Yaspslope.1, st_coordinates(BApoints))
+
+BApoints$aspectAster <-  raster::extract(Y_aspslope$Yaspslope.2, st_coordinates(BApoints))
+
+
+
+# Calculate prominence 
+
+library(FSA) # we need an additional library for the perc() function
+     # check the fce is here
+BApoints$prom250mbuff <- raster::extract(Y_elev,# raster containing elevation data
+                        st_coordinates(BApoints), # centroids of mounds
+                        buffer = 250, # actual buffer size in crs units, in this case 250m  or ca 22x22 cells around kernel
+                        fun = function(x){perc(x,x[length(x)/2],"lt", na.rm = FALSE, digits = 2)})
+
+```
+
+## Plot the environ data
+```{r}
+?mapview
+mapview(Yam_mnds, zcol = "prom250mbuff", label = "TRAP")
+mapview(BApoints, zcol ="prom250mbuff")
+```
+## Tabulate the BA data
+
+```{r}
+summary(BApoints)
+BApoints %>% 
+  st_drop_geometry() %>% 
+  dplyr::select(TRAP, HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff, LU_Around, LU_Top)
+
+
+```
+While most mounds are in areas of high natual prominence, two exceptions confirm the rule. 6010 and 8351 are in low lying non prominent areas. The low scores may be caused by the coarse resolution of the 30m ASTER image which smooths over small-scale outcrops. The other reason can be that the mound derived its prominence from its height
+
+### Height Boxplots
+```{r}
+boxplot(BApoints$HeightMax[BApoints$HeightMax>0], Yam_mnds$HeightMax[Yam_mnds$HeightMax>0], names = c("BA mounds", "all mounds"), main = "Maximum mound height")
+
+```
+
+### Elevations
+```{r}
+Yam_mnds %>% 
+  ggplot() +
+  geom_histogram(aes(y=elevAster))  +
+  geom_histogram(data = BApoints, aes(y=elevAster), fill = "yellow") +
+  theme_bw()
+
+Yam_mnds %>% 
+  ggplot() +
+  geom_histogram(aes(x=prom250mbuff))  +
+  geom_histogram(data = BApoints, aes(x=prom250mbuff), fill = "yellow") +
+  theme_bw()
+
+
+s
+```
+
 
 
 ```{r}
-library(mapview)
-mapview(BA, zcol = "HeghtMx") + mapview(extrasf)
+Apoints %>% 
+  ggplot(aes(x = LU_Around, y = HeightMax)) + 
+  geom_violin(alpha = 0)+
+  geom_jitter(color = "tomato")+
+  theme_bw()+
+  theme(panel.grid.major = element_blank())+
+  labs(x = "Feature type",
+       y = "Height of feature",
+       title = "Mound height by type")
 ```
+### Elevation densities
+```{r}
+ggplot() +
+  geom_line(data = yambol_regionelev_densities,
+            mapping = aes(x = Elevation,
+                          y = Frequency),
+            col = "lightgrey") +
+  geom_ribbon(data = yambol_densities_wide,
+              mapping = aes(x = Elevation,
+                            ymin = `Lower CI`,
+                            ymax = `Upper CI`),
+              col = "darkgrey",
+              alpha = 0.5) +
+  geom_line(data = mounds_densities,
+               mapping = aes(x = Elevation,
+                             y = Frequency),
+               color = "red", size = 2)+
+  theme_bw()
+```
+
+## Intervisibility
+```{r}
+# Test linestring creation on the first three BA mounds
+coords <- cbind(st_coordinates(extrasf$geometry),st_coordinates(BA$geometry[1:3]))
+
+# Test linestring creation from one origin and multiple target points. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
+coords <- as.matrix(cbind(as.data.frame(st_coordinates(extrasf$geometry[2])),
+                as.data.frame(st_coordinates(BA$geometry))))
+
+lines <-  st_sfc(
+     lapply(1:nrow(coords),
+           function(i){
+             st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
+           }))
+
+st_crs(lines) <- st_crs(BA)
+plot(lines) ; plot(extrasf$geometry[1], col = "red", add = T) ;
+plot(BA$geometry, col = "green", add = T)
+
+
+library(mapview)
+mapview(lines)+mapview(BA$geometry)+ mapview(extrasf$geometry)
+
+# https://stackoverflow.com/questions/65498300/how-to-efficiently-create-linestrings-from-points
+# https://stackoverflow.com/questions/58150279/plotting-lines-between-two-sf-point-features-in-r
+```
+
+
+
 # Excavated mounds from Yambol based on AORs
 
 ```{r load-AOR-google}
@@ -87,74 +246,3 @@ BApotential
 
 
 ```
-
-
-
-
-# Extract data from raster
-```{r}
-Y_elev <- raster("../output_data/Yelev32635.tif")
-st_crs(Y_elev)==st_crs(mnds)
-```
-
-
-## Intervisibility
-```{r}
-# Test linestring creation on the first three BA mounds
-coords <- cbind(st_coordinates(extrasf$geometry),st_coordinates(BA$geometry[1:3]))
-
-# Test linestring creation from one origin and multiple target points. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
-coords <- as.matrix(cbind(as.data.frame(st_coordinates(extrasf$geometry[2])),
-                as.data.frame(st_coordinates(BA$geometry))))
-
-lines <-  st_sfc(
-     lapply(1:nrow(coords),
-           function(i){
-             st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
-           }))
-
-st_crs(lines) <- st_crs(BA)
-plot(lines) ; plot(extrasf$geometry[1], col = "red", add = T) ;
-plot(BA$geometry, col = "green", add = T)
-
-
-library(mapview)
-mapview(lines)+mapview(BA$geometry)+ mapview(extrasf$geometry)
-
-# https://stackoverflow.com/questions/65498300/how-to-efficiently-create-linestrings-from-points
-# https://stackoverflow.com/questions/58150279/plotting-lines-between-two-sf-point-features-in-r
-```
-
-# Extract raster values for BA mounds (elevation and prominence)
-Ideally, when grabbing the excavated mounds, I get the information from the AOR reports, so have as complete a record of the morphology as possible
-```{r sample-elev-aspect-slope-22}
-# Prerequisite to sampling - a dataframe with coordinates alone
-extras
-BApoints
-
-# Sample elevations at mound locations
-extras$elevAster <- raster::extract(elev, st_coordinates(extrasf))
-
-# Extract values from slope/aspect rasters created in script 00
-extras$slopeAster <-  raster::extract(Y_aspslope$slope, st_coordinates(extrasf))
-
-extras$aspectAster <-  raster::extract(Y_aspslope$aspect, st_coordinates(extrasf))
-
-
-
-# Calculate prominence 
-
-library(FSA) # we need an additional library for the perc() function
-?perc()      # check the fce is here
-extras$prom250mbuff <- raster::extract(elev,# raster containing elevation data
-                        st_coordinates(extrasf), # centroids of mounds
-                        buffer = 250, # actual buffer size in crs units, in this case 250m  or ca 22x22 cells around kernel
-                        fun = function(x){perc(x,x[length(x)/2],"lt", na.rm = FALSE, digits = 2)})
-
-extrasf <- extrasf %>% 
-  left_join(extras, by = "place")
-extrasf
-
-BA <- rbind.fill(data.frame(BA),extras)
-```
-

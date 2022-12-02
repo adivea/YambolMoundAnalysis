@@ -98,7 +98,7 @@ str(mnds)
 ```{r yambol-mnds}
 Y_region <- st_read("../data/YamRegion.shp")
 Yam_mnds <- st_intersection(mnds, Y_region$geometry)
-plot(Yam_mnds$geometry)
+plot(Yam_mnds$geometry);
 plot(Yam_mnds["Condition"])
 ```
 
