@@ -1,0 +1,82 @@
+Column,MoundID,Type,DescriptionOfMoundOrLocale,PositionInTheLandscape,Condition,Feature_Facing,FacingDirection,Image_Verification,CentralFeature
+11,8230,Uncertain Feature,could be a burial mound but is most probably a modern structure such as a bunker ,Valley Bottom or Plain,4 - seriously damaged,Cannot tell,NA,Bunker,Bunker
+20,8515,Other,huge rectangular bunker from the cold war,Hilltop,0 - No observation,Not Recorded,NA,Bunker,Bunker
+38,9653,Uncertain Feature,possible tank enclosure or ditch made by farmers,Hilltop,0 - No observation,Northeast,Northeast,Vehicle emplacement,Vehicle emplacement
+40,8243,Other,tank emplacement approx 1.5m deep and 8m long. could possibly be the site of an extinct mound but now it is simply a depression from tank emplacement,Hilltop,4 - seriously damaged,North,North,Tank emplacement,Tank emplacement
+41,9654,Uncertain Feature,tank enclosure - noticed en route from 9653,Hilltop,0 - No observation,South,South,Vehicle emplacement,Vehicle emplacement
+42,8244,Other,a dug out approx  20m east from the previous tank emplacement (#8243,Hilltop,4 - seriously damaged,East,East,Tank emplacement,Tank emplacement
+43,9655,Other,tank enclosure,Hilltop,0 - No observation,South,South,Tank emplacement,Tank emplacement
+44,8245,Other,"1m high, stoney, military protrusion from landscape",Lower slope,3 - damaged,South,South,Uncertain,Uncertain
+45,9656,Other,tank enclosure,Hilltop,0 - No observation,South,South,Vehicle emplacement,Vehicle emplacement
+46,8246,Other,tank emplacement approx 1.5m deep and 8m long. could possibly be the site of an extinct mound d but now it is simply a depression from tank emplacement,Lower slope,4 - seriously damaged,South,South,Vehicle emplacement,Vehicle emplacement
+47,8247,Other,trench against the Turkish in cold war,Lower slope,3 - damaged,South,South,Infantry trench,Infantry trench
+51,8250,Other,"tank emplacement approx 1.5m deep and 8m long. could possibly be the site of an extinct mound d but now it is simply a depression from tank emplacement
+
+8250=8246",Lower slope,4 - seriously damaged,South,South,Vehicle emplacement,Vehicle emplacement
+53,8252,Other (military activity),similar to 8243. shallower and has large outcrops at the bottom. looks already excavated,Lower slope,5 - extinct or near extinct,West,West,Vehicle emplacement,Vehicle emplacement
+54,9658,Uncertain Feature,tank enclosure - noticed en route,Hilltop,0 - No observation,Not Recorded,NA,Vehicle emplacement,Vehicle emplacement
+57,8254,Burial Mound,second mound directly beside previous record. top has a flat area that could be suspicious but probably due to military during cold war ,Lower slope,1 - pristine,Not Recorded,NA,Cannot tell,NA
+59,9661,Burial Mound,highly destroyed with almost no archaeological potential; large tank enclosure/embankment present,Hilltop,4 - seriously damaged,Not Recorded,NA,Tank emplacement,Tank emplacement
+60,8255,Other,could be a military trench or a water resoivor sitting on a terrace over the South,Upper slope,3 - damaged,South,South,Vehicle emplacement,Vehicle emplacement
+63,9662,Other (military tank embankment),tank embankment,Hilltop,0 - No observation,Southeast,Southeast,Tank emplacement,Tank emplacement
+64,9663,Other (military concrete bunker under soil layer with concrete and brick arch (entrance)),overgrown with spiky bushes (modern but unused); entrances filled with soil with several small surrounding trenches,Hilltop,0 - No observation,Southwest,Southwest,Bunker,Bunker
+71,9666,Uncertain Feature,double-ditch; two large military ditches side by side,Hilltop,0 - No observation,Cannot tell,NA,Infantry trench,Infantry trench
+84,8524,Burial Mound,"wildly excavated from top, trenches all over the surface reaching 3meters, visible stratigraphy",Upper slope,4 - seriously damaged,South,South,Infantry trench,Infantry trench
+95,9674,Other,"military tank embankment, 6 x 8 x 1 m, tank enclosure",Upper slope,0 - No observation,Not Recorded,NA,Tank emplacement,Tank emplacement
+100,8269,Other (tank emplacement or resoivor),tankodrom above g sharkovo,Lower slope,0 - No observation (not applied),West,West,Tank emplacement,Tank emplacement
+102,8270,Other (bunker),"bunker on hill (North slope) above g sharkovo, fig tree in west facing entry, bricks and concrete debris around",Upper slope,0 - No observation,West,West,Bunker,Bunker
+103,8271,Extinct Burial Mound,mound converted into bunker with a North facing steps entry made of concrete blocks. RT on South side,Upper slope,5 - extinct or near extinct,South,South,Bunker,Bunker
+105,8272,Other (tank emplacement ),extremely large tank emplacement,Upper slope,0 - No observation (not relevant as it is a tank emplacement),South,South,Tank emplacement,Tank emplacement
+120,8278,Other (bunker),concrete bunker above ground,Upper slope,0 - No observation (not relevant: modern structure),Not Recorded,NA,Bunker,Bunker
+124,9687,Uncertain Feature,"tank embankment/enclosure
+",Lower slope,0 - No observation,East,East,Vehicle emplacement,Vehicle emplacement
+126,9689,Burial Mound,"geodetic point present, two large tank enclosures present",Hilltop,4 - seriously damaged,South,South,Vehicle emplacement,Vehicle emplacement
+127,9690,Other,large deep tank embankment,Hilltop,0 - No observation,Not Recorded,NA,Vehicle emplacement,Vehicle emplacement
+129,8531,Extinct Burial Mound,round military shelter instaed,Hilltop,5 - extinct or near extinct,Not Recorded,NA,Bunker,Bunker
+130,8281,Extinct Burial Mound,appears that a mound was used for a probable tank emplacement,Lower slope,5 - extinct or near extinct,Southeast,Southeast,Vehicle emplacement,Vehicle emplacement
+136,8284,Burial Mound,small mound with 2 trenches in close proximity to legacy site,Upper slope,2 - minor damage,Not Recorded,NA,Infantry trenches,Infantry trench
+144,8535,Extinct Burial Mound,military shelter instaed,Upper slope,5 - extinct or near extinct,Not Recorded,NA,Bunker,Bunker
+151,8289,Other (trench),trench cut deep into the ground and Rock,Lower slope,0 - No observation (not relevant),Not Recorded,NA,Infantry trench,Infantry trench
+153,8290,Burial Mound,burial mound repurposed by military with a marker on top surrounded by stones while the whole surface of the mound is covered in large stones. marker 1.5m tall,Upper slope,4 - seriously damaged,Not Recorded,NA,Vehicle emplacement,Vehicle emplacement
+194,8552,Extinct Burial Mound,"large trench in the forest instead of a mound, white spot detected in the trench",Lower slope,5 - extinct or near extinct,East,East,Vehicle emplacement,Vehicle emplacement
+233,8705,Other,Military Trench ,Upper slope,0 - No observation,East,East,Vehicle emplacement and infatnry trench,Vehicle emplacement
+234,9721,Extinct Burial Mound,"great view towards the borders, mound replaced with a military bunker",Hilltop,5 - extinct or near extinct,Not Recorded,NA,Bunker,Bunker
+235,8706,Other,Tank Emplacement plus trench,Upper slope,0 - No observation,North,North,Vehicle emplacement,Vehicle emplacement
+236,8707,Other,Bunker,Upper slope,0 - No observation,South,South,Bunker with trench network,Bunker
+237,8708,Other,Tank Embankment,Upper slope,0 - No observation,Southwest,Southwest,Tank emplacement,Tank emplacement
+238,8709,Extinct Burial Mound,"Extinct mound, now military bunker ",Upper slope,5 - extinct or near extinct,Cannot tell,NA,Bunker,Bunker
+239,8710,Other,Tank Embankment,Upper slope,0 - No observation,East,East,Tank emplacement,Tank emplacement
+241,8711,Other,old Bunker with concrete walls. In situ but broken,Lower slope,0 - No observation,Not Recorded,NA,Bunker,Bunker
+251,9730,Extinct Burial Mound,"within heaps of old military shelters for huge cars, no remains of mound",Hilltop,5 - extinct or near extinct,Not Recorded,NA,Vehicle shelter,Vehicle emplacement
+261,8715,Burial Mound,tank\car emplacement,Hilltop,4 - seriously damaged,Not Recorded,NA,Vehicle emplacement,Vehicle emplacement
+270,8721,Extinct Burial Mound?,suspicious mound like feature with a concrete tank emplacement inside. could be an extinct mound,Upper slope,4 - seriously damaged,East,East,Vehicle emplacement,Vehicle emplacement
+271,8722,Extinct Burial Mound?,"small mound like feature next to tank emplacement and large 8720, with a concrete walled trench,1.5m deep, zigzagging over the top.possibly modern in origin.",Upper slope,3 - damaged,Southeast,Southeast,Reinforced infantry trench?,Infantry trench
+275,8725,Other,tank embankment with concrete walls,Lower slope,0 - No observation,Not Recorded,NA,Vehicle emplacement,Vehicle emplacement
+276,8726,Other,"tank emplacement, just earth",Lower slope,0 - No observation,Not Recorded,NA,Tank emplacement,Tank emplacement
+17,8740,Burial Mound,high mound in scub area. less than one third of the mound left due to military activity ,Upper slope,3 - damaged,South,South,Infantry trench,Infantry trench
+451,8747,Burial Mound,Low Mound in an area of scrub and treeswith a big geodetic marker and an old geodetic marker laying towards north. 10m the north of the mound there is a s-shaped military trench about 1-1.5m deep. grass and trees and stones covering the surface of the mound. ,Hilltop (Ridge),2 - minor damage,West,West,Infantry trench,Infantry trench
+461,8595,Other,military bunker,Upper slope,2 - minor damage,Not Recorded,NA,Bunker,Bunker
+471,8748,Other (Military feature),We are 20 meter south of the mound 8747. grass on top in a Scrubby area. Military feature from the cold war. Shallow c-shaped form of the valley.,Hilltop (ridge),1 - pristine,West,West,Tank emplacement,Tank emplacement
+571,9829,Other (Military structure. ),Military structure build on top of mound. located next to a field to the east. Located in a clearing with trees to the north and west. the  military structure is build into the the field facing south with an entrance on the north side. It also has a geodetic marker on top which dates to 1949.,Hilltop (Hilltop of a low rolling hill ),1 - pristine,South,South,Bunker,Bunker
+601,9830,Burial Mound (Could have been a mound but later rebuild a a military trench)?,Possible burial mound rebuilt as a military trench. located 20 meters north of mound 9829 in a scrubby area. Grass and some scrub on top. uneven surface due to the establishment of a military trench in the possible mound.,Hilltop,4 - seriously damaged,Southwest,Southwest,Infantry trench system,Infantry trench
+711,9836,Other (Militarily construction ),Military structure placed in a mound on top of a ridge. Military structure located with scrubby area surrounding it. ,Hilltop,2 - minor damage (On the entrance on the north west side of the bunker. As a military structure it is in good condition. ),South,South,Bunker,Bunker
+72,9837,Other (Military structure ),Military structure located in a field facing south West. scrubby area on top. Situated quite low in the landscape and terrain. Fields around. Entrance of military structure is on the north side. ,Upper slope,2 - minor damage (Entrance damaged ),South,South,Bunker,Bunker
+75,9840,Other (military structure ),military structure located north of the burial mound 9839. overgrown by scrub.situated low in the terrain. One post by the entrance. Structure hard to see. ,Upper slope,3 - damaged,South,South,Bunker,Bunker
+76,9841,Other (military structure ),military structure located in a field. scrubby area on top of the mound. entrance to the north. Situated very low in the terrain. overgrown by scrub. hard to see.,Upper slope,1 - pristine,South,South,Bunker,Bunker
+78,9843,Other (military structure ),military structure in bad condition. big hole in the middle of the structure. located in a field with scrub in the structure. ,Lower slope,5 - extinct or near extinct,Collapsed,NA,Bunker,Bunker
+82,9845,Other (Military structure ),the military structure is 10 m from a dirtroad to the southwest. Structure is concrete and semi round.,Upper slope,2 - minor damage,South,South,Bunker,Bunker
+83,8609,Other,"military bunker, observation ",Hilltop,0 - No observation,South,South,"Bunker,OP",Bunker
+87,8611,Uncertain Feature,possibly an extinct mound or a military trench ,Hilltop,4 - seriously damaged,Not Recorded,NA,Infantry trench,Infantry trench
+88,8753,Burial Mound,"Mound on a ridge, southeast from Malomirovo village above river  . a low map mound. No RT but military trench to the north  ",Hilltop,2 - minor damage,Not Recorded,NA,Vehicle emplacement,Vehicle emplacement
+91,8754,"Other (tank implacement, military feature )",a military feature 20m north of mound with an associate chicken foot trench,Upper slope,0 - No observation,No drawing,NA,Vehicle emplacement,Vehicle emplacement
+107,8619,Other,Observation point situated in the middle of military trenches ,Hilltop,0 - No observation,South,South,Bunker and Infantry trench,Bunker
+111,9854,Burial Mound??,Located in a flat plain surrounded by a scrubs and bushes. In the Southwest is disturbed by long military trench with stonewalls. ,Valley Bottom or Plain,3 - damaged,Not Recorded,NA,Cannot tell,NA
+148,8768,Extinct Burial Mound,"overgrown C-shape remnants of a cratered mound immediately east of the road, at the dirt road, overgrown with scrub and tall grass, robbed or excavated a long time ago, details cannot be determined. the crater could be a tank emplacement but it is more wide and open to the east than a tank emplacement.",Hilltop,5 - extinct or near extinct,East,East,Vehicle emplacement,Vehicle emplacement
+1511,8769,Other,"military feature, tank emplacement, authentic road intersection after the creek crossing, south of the road, open to the west, overgrown with trees",Lower slope,0 - No observation,Northeast,Northeast,Vehicle emplacement,Vehicle emplacement
+162,8644,Other (military structure and geodetic point ),"we discovered a military structure at the point on the legacy map. it could possibly have been a mound, but later military have damaged it. a big geodetic marker is situated at the top. the geodetic marker is enclosed by military trenches ",Hilltop,0 - No observation,Not Recorded,NA,Cannot tell,NA
+180,9875,Burial Mound,Mound is located on a ridge in dense scrub and forest east of Lulin and south of Kavac Dere River. Mound is on a slight ridge and appears to be surrounded in very old fox holes and other military embankment works. there is a fox hole on top of the mound.,Upper slope,2 - minor damage,Not Recorded,NA,Infantry foxholes and vehicle trenches,Infantry trench
+206,8796,Burial Mound,"large mound at S edge of Izgrev village on top of a south-facing spur of land with disturbed surface overgrown with grass with numerous concentric trenches filled with scrub.  geodetic  point on top. lowest trench has two ramps crossing it, aiming southwards and westward. disturbances over all but mostly military and not of rt nature. many tanks could fit here.",Hilltop,3 - damaged,Not Recorded,NA,Infantry trench,Infantry trench
+211,8652,Uncertain Feature,"uncertain feature located in a ploughed field. the feature is big with some scrub growing all around and on top. the feature is characterized by natural occurring bedrock and stones, which makes the surface of the feature uneven and rocky. some holes could be done by humans - possibly military activity, but we are not sure about this ",Valley Bottom or Plain,0 - No observation,Not Recorded,NA,Cannot tell,NA
+212,8798,Extinct Burial Mound (bunker with trenches),"Mound on field southeast of elhovo. there is a geodetic marker that indicates the preexisting mound. poorly visible from the east. scrub all over. mound replaced by a bunker. bunker access completely obscured by Scrubby bushes, except from the east.",,5 - extinct or near extinct,Not Recorded,NA,Bunker,Bunker
+2371,8658,Burial Mound,"South from Nedyalsko village,  a military trench at its west",Upper slope,4 - seriously damaged,Not Recorded,NA,Vehicle emplacement,Vehicle emplacement
+254,8666,Other,"bunker, overgrown,  concrete well-liks structure on the top, stone structure inside,  possibly a reservoir ",Lower slope,3 - damaged,Not Recorded,NA,Bunker,Bunker

@@ -28,7 +28,7 @@ First, we shall try a t-test (a basic test that checks for independence between 
 ### Prominence
 ```{r t-test-prom}
 # Draw 999 random samples from the region, and compute a t-test
-YMound_prom_TT <- foreach(n = 1:999, .combine = rbind) %do% {
+YMound_prom_TT <- foreach(n = 1:99, .combine = rbind) %do% {
   Yambol_sample <- yambol_region_values %>%
     sample(nrow(Yam_mnds),
            replace = FALSE) %>%

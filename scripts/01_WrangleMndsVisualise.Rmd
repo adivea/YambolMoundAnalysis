@@ -208,7 +208,7 @@ raster::plot(Yam_mnds$geometry, cex = sqrt(Yam_mnds$HeightMax), add =T)
 ```{r mapview-height}
 library(mapview)
 class(Yam_mnds)
-mapview(Yam_mnds, cex="HeightMax")
+
 ```
 
 ### Mounds and their condition

@@ -4,16 +4,72 @@ author: "Adela Sobotkova"
 date: "2022-11-12"
 output: html_document
 ---
-
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(rmdformats)
+library(formatR)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
 ```
 
-## Load 2009-2018 data
+
+```{r libraries}
+library(tidyverse)
+library(sf)
+library(raster)
+```
+
+## Load 2009-2022 mound data and 2018 - 2022 military feature data
 ```{r}
-# Environmental-extraction-enriched output from 2020 Mound Merging repo > 07_EnrichSpatial.R
-mn09_18 <- read_csv2("../data/enriched_all.csv")
-names(mn09_18)
-mn09_18 %>% 
-  group_by(Type) %>% 
-  count()
+getwd()
+Yam_mnds <- readRDS("../output_data/mnds_aggr.rds")
+Yam_mil <- read_csv("../output_data/MIlitaryFeatures-OR12Dec22.csv")
+```
+
+### Explore the data a bit
+```{r}
+head(Yam_mil)
+
+unique(Yam_mil$FacingDirection)
+unique(Yam_mil$CentralFeature)
+#Yam_mil$feature.facing <- factor(Yam_mil$feature.facing)
+
+Yam_mil %>% 
+  group_by(CentralFeature) %>% 
+  count() %>% 
+  arrange(desc(n))
+```
+
+## Load elevation raster and Yambol region boundary
+```{r get-elev}
+Y_region <- st_read("../data/YamRegion.shp")
+
+Y_elev <- raster("../output_data/large/Yelev32635.tif")
+plot(Y_elev, main = " Yambol region with burial mound distribution");plot(Yam_mnds$geometry, cex = sqrt(Yam_mnds$HeightMax), add= T)
+```
+
+
+## Plot
+```{r}
+Yam_bunkers <- Yam_mnds %>% 
+  dplyr::filter(TRAP %in% Yam_mil$MoundID) %>% 
+  full_join(Yam_mil, by = c("TRAP"="MoundID"))
+
+
+library(mapview)
+Yam_bunkers$CentralFeature
+mapview(Yam_mnds, cex = 1) + mapview(Yam_bunkers, zcol = "CentralFeature")
+
+plot(Yam_bunkers$geometry, alpha = 0.5, pch = 19)
+
+```
+
