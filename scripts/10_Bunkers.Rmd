@@ -54,7 +54,7 @@ Yam_mil %>%
 Y_region <- st_read("../data/YamRegion.shp")
 
 Y_elev <- raster("../output_data/large/Yelev32635.tif")
-plot(Y_elev, main = " Yambol region with burial mound distribution");plot(Yam_mnds$geometry, cex = sqrt(Yam_mnds$HeightMax), add= T)
+plot(Y_elev, main = " Yambol region with burial mound distribution");plot(Yam_mnds$geometry, cex = sqrt(as.numeric(Yam_mnds$HeightMax)), add= T)
 ```
 
 
@@ -68,8 +68,6 @@ Yam_bunkers <- Yam_mnds %>%
 library(mapview)
 Yam_bunkers$CentralFeature
 mapview(Yam_mnds, cex = 1) + mapview(Yam_bunkers, zcol = "CentralFeature")
-
-plot(Yam_bunkers$geometry, alpha = 0.5, pch = 19)
 
 ```
 

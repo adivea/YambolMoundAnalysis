@@ -17,32 +17,59 @@ Yam_mnds <- readRDS("../output_data/Yam_mnds.rds")
 head(Yam_mnds)
 ```
 # Bronze Age mounds from Toshko
-```{r bronze-age-m}
-# Take out the BA mounds from the FAIMS data
+
+Drazhevo - Height: 2.7 m; Diameter: 37.0 m; Land: pasture on the rocky area
+Straldzha - Height: 4.0 m; Diameter: 50.0 m; Land: wines and pasture
+Popovo - Height: 6.8 m; Diameter: 48.0 m; Land: wines and pasture
+
+8345 Mogila village - Height: 3.2 m; Diameter: 37.6 m; Land: pasture on the rocky area 
+
+
+```{r BA-faims}
+# Filter out the BA mounds from the FAIMS data
 bronze <- c(6009,8007,6010,8345,8346,8357, 8502, 8351, 9257)
 BA <- Yam_mnds %>% 
   filter(TRAP %in% bronze)
 
+# Add literature dimensions to mound 8345, which was excavated before survey 
+BA$DiameterMax[5] <- 37.5
+BA$HeightMax[5] <- 3.2
+
+
+
+```
+
+```{r BA-Todor}
 # Add the few mounds excavated before TRAP coverage >> these should be pulled out of the AOR dataset to get the Height, Diameter and other dimensions..
 extras <- data.frame(place = c("Drazhevo", 
                            "Straldzha",
                            "Popovo"),
                  Easting=c(455442,479522,479391),
-                 Northing=c(4710935,4715730,4668279))
+                 Northing=c(4710935,4715730,4668279),
+                 HeightMax=c(2.7,4.0,6.8),
+                 DiameterMax = c(37,50,48),
+                 LU_Around = c("Pasture","Perennial","Perennial"),
+                 Type = c("Burial Mound","Burial Mound","Burial Mound"),
+                 Source = c("Excavation","Excavation","Excavation"))
 extrasf <- st_as_sf(extras, coords =c("Easting", "Northing"), crs = 32635)
 
 library(plyr)
+```
 
+
+```{r BA-combo}
+# Combine both BA datasets and spatialize
 BApoints <- rbind.fill(BA, extrasf)
 BAcoords <- rbind(st_coordinates(BA) ,st_coordinates(extrasf))
 BApoints <- cbind(BApoints, BAcoords)
 BApoints <- st_as_sf(BApoints, coords = c("X", "Y"), crs = 32635)
+tail(BApoints)
 ```
 
 ## Look where these mounds are
 ```{r}
 library(mapview)
-mapview(BApoints)
+mapview(Yam_mnds, cex = 2) + mapview(BApoints)
 ```
 
 ```{r}
@@ -108,9 +135,25 @@ BApoints %>%
   st_drop_geometry() %>% 
   dplyr::select(TRAP, HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff, LU_Around, LU_Top)
 
+```
+make the values in table more visible
+```{r}
+library(formattable)
+
+highlight <- color_tile("yellow","yellow")
+
+formattable(BApoints %>% 
+  st_drop_geometry() %>% 
+  dplyr::select(TRAP, HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff, LU_Around, LU_Top), list(
+  area(col = 6, row = 2 ) ~ highlight,
+  area(col = 6, row = 7 ) ~ highlight,
+  area(col = 1, row = 2 ) ~ highlight,
+  area(col = 1, row = 7 ) ~ highlight
+  ))
 
 ```
-While most mounds are in areas of high natual prominence, two exceptions confirm the rule. 6010 and 8351 are in low lying non prominent areas. The low scores may be caused by the coarse resolution of the 30m ASTER image which smooths over small-scale outcrops. The other reason can be that the mound derived its prominence from its height
+
+While most mounds are in areas of high natural prominence, two exceptions confirm the rule: 6010 and 8351 are in low-lying non-prominent areas. The low scores may be caused by the coarse resolution of the 30m ASTER image which smooths over small-scale outcrops. The other option is that the mound-builders cared less about high location, sought dissociation from mounds on outcrops (already standing), or hoped to imbue the mound with prominence by raising its height.
 
 ### Height Boxplots
 ```{r}
@@ -124,22 +167,28 @@ Yam_mnds %>%
   ggplot() +
   geom_histogram(aes(y=elevAster))  +
   geom_histogram(data = BApoints, aes(y=elevAster), fill = "yellow") +
+  labs(title = "Elevation in Yambol and BA mounds(in yellow)",
+       y = "Elevation (m)",
+       x = "Count")
   theme_bw()
-
+```
+### Prominence comparison
+```{r}
 Yam_mnds %>% 
   ggplot() +
   geom_histogram(aes(x=prom250mbuff))  +
   geom_histogram(data = BApoints, aes(x=prom250mbuff), fill = "yellow") +
+  labs(title = "Prominence of Yambol relief and BA mounds (in yellow)",
+       x = "Prominence (%)",
+       y = "Count")
   theme_bw()
 
-
-s
 ```
 
 
 
 ```{r}
-Apoints %>% 
+BApoints %>% 
   ggplot(aes(x = LU_Around, y = HeightMax)) + 
   geom_violin(alpha = 0)+
   geom_jitter(color = "tomato")+
@@ -150,7 +199,9 @@ Apoints %>%
        title = "Mound height by type")
 ```
 ### Elevation densities
-```{r}
+
+To get elevation plotted as densities rather than histograms, one must rerun ElevationMC script.
+```{r MC-densities, eval=FALSE}
 ggplot() +
   geom_line(data = yambol_regionelev_densities,
             mapping = aes(x = Elevation,
@@ -170,6 +221,8 @@ ggplot() +
 ```
 
 ## Intervisibility
+
+Let's first see if we an create linestrings to later signal which mounds can *see* each other.
 ```{r}
 # Test linestring creation on the first three BA mounds
 coords <- cbind(st_coordinates(extrasf$geometry),st_coordinates(BA$geometry[1:3]))
@@ -195,12 +248,48 @@ mapview(lines)+mapview(BA$geometry)+ mapview(extrasf$geometry)
 # https://stackoverflow.com/questions/65498300/how-to-efficiently-create-linestrings-from-points
 # https://stackoverflow.com/questions/58150279/plotting-lines-between-two-sf-point-features-in-r
 ```
+ Actual intervisibility means that all values in the cells along a line connecting two points are lower than those of the two points - there is a clear "line of sight"
+Let's test such line of sight by extracting data out of raster cells between our BA points.
 
+https://stackoverflow.com/questions/21841387/r-code-that-evaluates-line-of-sight-los-between-two-lat-lon-points 
+
+https://gis.stackexchange.com/questions/272122/performing-viewshed-analysis-in-r
+```{r}
+cansee <- function(Y_elev, xy1, xy2, h1=0, h2=0){
+### can xy1 see xy2 on DEM r?
+### Y_elev is a DEM in same x,y, z units
+### xy1 and xy2 are 2-length vectors of x,y coords
+### h1 and h2 are extra height offsets
+###  (eg top of mast, observer on a ladder etc)
+    xyz = rasterprofile(r, xy1, xy2)
+    np = nrow(xyz)-1
+    h1 = xyz$z[1] + h1
+    h2 = xyz$z[np] + h2
+    hpath = h1 + (0:np)*(h2-h1)/np
+    return(!any(hpath < xyz$z))
+}
+
+viewTo <- function(r, xy, xy2, h1=0, h2=0, progress="none"){
+    ## xy2 is a matrix of x,y coords (not a data frame)
+    require(plyr)
+    aaply(xy2, 1, function(d){cansee(r,xy,d,h1,h2)}, .progress=progress)
+}
+
+rasterprofile <- function(r, xy1, xy2){
+### sample a raster along a straight line between two points
+### try to match the sampling size to the raster resolution
+    dx = sqrt( (xy1[1]-xy2[1])^2 + (xy1[2]-xy2[2])^2 )
+    nsteps = 1 + round(dx/ min(res(r)))
+    xc = xy1[1] + (0:nsteps) * (xy2[1]-xy1[1])/nsteps
+    yc = xy1[2] + (0:nsteps) * (xy2[2]-xy1[2])/nsteps
+    data.frame(x=xc, y=yc, z=r[cellFromXY(r,cbind(xc,yc))])
+}
+```
 
 
 # Excavated mounds from Yambol based on AORs
 
-```{r load-AOR-google}
+```{r load-AOR-google, eval = FALSE}
 library(googlesheets4)
 gs4_deauth()
 
@@ -216,7 +305,7 @@ These Izvestia_df.json and AOR_df.json have been downloaded in data folder
 Some guidance on unnesting:
 https://stackoverflow.com/questions/38860380/unnesting-a-list-of-lists-in-a-data-frame-column
 
-```{r}
+```{r eval = FALSE}
 library(jsonlite)
 
 json <- read_json("../data/AOR_df_2020-06-24.json", simplifyVector = TRUE)
