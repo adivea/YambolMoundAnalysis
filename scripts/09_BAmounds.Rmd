@@ -8,12 +8,15 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(sf)
+library(raster)
+library(tidyverse)
 ```
 
 ## Load 2009-2022 data
 ```{r load-mounds}
 # Yambol mounds
 Yam_mnds <- readRDS("../output_data/Yam_mnds.rds")
+Y_region <- st_read("../data/YamRegion.shp")
 head(Yam_mnds)
 ```
 # Bronze Age mounds from Toshko
@@ -34,8 +37,6 @@ BA <- Yam_mnds %>%
 # Add literature dimensions to mound 8345, which was excavated before survey 
 BA$DiameterMax[5] <- 37.5
 BA$HeightMax[5] <- 3.2
-
-
 
 ```
 
@@ -84,7 +85,7 @@ plot(BApoints$geometry, pch = 16, col = "red", add =T)
 
 
 # Extract promience and elevation data from raster
-```{r}
+```{r raster-extract}
 Y_elev <- raster("../output_data/large/Yelev32635.tif")
 Y_aspslope <- brick("../output_data/large/Yaspslope.tif")
 ```
@@ -220,118 +221,4 @@ ggplot() +
   theme_bw()
 ```
 
-## Intervisibility
 
-Let's first see if we an create linestrings to later signal which mounds can *see* each other.
-```{r}
-# Test linestring creation on the first three BA mounds
-coords <- cbind(st_coordinates(extrasf$geometry),st_coordinates(BA$geometry[1:3]))
-
-# Test linestring creation from one origin and multiple target points. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
-coords <- as.matrix(cbind(as.data.frame(st_coordinates(extrasf$geometry[2])),
-                as.data.frame(st_coordinates(BA$geometry))))
-
-lines <-  st_sfc(
-     lapply(1:nrow(coords),
-           function(i){
-             st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
-           }))
-
-st_crs(lines) <- st_crs(BA)
-plot(lines) ; plot(extrasf$geometry[1], col = "red", add = T) ;
-plot(BA$geometry, col = "green", add = T)
-
-
-library(mapview)
-mapview(lines)+mapview(BA$geometry)+ mapview(extrasf$geometry)
-
-# https://stackoverflow.com/questions/65498300/how-to-efficiently-create-linestrings-from-points
-# https://stackoverflow.com/questions/58150279/plotting-lines-between-two-sf-point-features-in-r
-```
- Actual intervisibility means that all values in the cells along a line connecting two points are lower than those of the two points - there is a clear "line of sight"
-Let's test such line of sight by extracting data out of raster cells between our BA points.
-
-https://stackoverflow.com/questions/21841387/r-code-that-evaluates-line-of-sight-los-between-two-lat-lon-points 
-
-https://gis.stackexchange.com/questions/272122/performing-viewshed-analysis-in-r
-```{r}
-cansee <- function(Y_elev, xy1, xy2, h1=0, h2=0){
-### can xy1 see xy2 on DEM r?
-### Y_elev is a DEM in same x,y, z units
-### xy1 and xy2 are 2-length vectors of x,y coords
-### h1 and h2 are extra height offsets
-###  (eg top of mast, observer on a ladder etc)
-    xyz = rasterprofile(r, xy1, xy2)
-    np = nrow(xyz)-1
-    h1 = xyz$z[1] + h1
-    h2 = xyz$z[np] + h2
-    hpath = h1 + (0:np)*(h2-h1)/np
-    return(!any(hpath < xyz$z))
-}
-
-viewTo <- function(r, xy, xy2, h1=0, h2=0, progress="none"){
-    ## xy2 is a matrix of x,y coords (not a data frame)
-    require(plyr)
-    aaply(xy2, 1, function(d){cansee(r,xy,d,h1,h2)}, .progress=progress)
-}
-
-rasterprofile <- function(r, xy1, xy2){
-### sample a raster along a straight line between two points
-### try to match the sampling size to the raster resolution
-    dx = sqrt( (xy1[1]-xy2[1])^2 + (xy1[2]-xy2[2])^2 )
-    nsteps = 1 + round(dx/ min(res(r)))
-    xc = xy1[1] + (0:nsteps) * (xy2[1]-xy1[1])/nsteps
-    yc = xy1[2] + (0:nsteps) * (xy2[2]-xy1[2])/nsteps
-    data.frame(x=xc, y=yc, z=r[cellFromXY(r,cbind(xc,yc))])
-}
-```
-
-
-# Excavated mounds from Yambol based on AORs
-
-```{r load-AOR-google, eval = FALSE}
-library(googlesheets4)
-gs4_deauth()
-
-
-general <- read_sheet("https://docs.google.com/spreadsheets/d/1l2glM1X8eiWFArunnnTG6iGdWUvcd7LVBYiFcbjBDJQ/edit#gid=1761342759&fvid=1870098839")
-mound <- read_sheet("https://docs.google.com/spreadsheets/d/1l2glM1X8eiWFArunnnTG6iGdWUvcd7LVBYiFcbjBDJQ/edit#gid=1172661582", range = "MoundAttributes")
-burial <- read_sheet("https://docs.google.com/spreadsheets/d/1l2glM1X8eiWFArunnnTG6iGdWUvcd7LVBYiFcbjBDJQ/edit#gid=1172661582", range = "BurialAttributes")
-
-# here I can join them all and play.
-```
-Alternatively, and better perhaps, I can load the merged data in json format from \url{https://sciencedata.dk/index.php/apps/files/?dir=%2FSDAM_root%2FSDAM_data%2Fmounds&id=7813458&owner=648597%40au.dk} sciencedata.dk, unlist and work with
-These Izvestia_df.json and AOR_df.json have been downloaded in data folder
-Some guidance on unnesting:
-https://stackoverflow.com/questions/38860380/unnesting-a-list-of-lists-in-a-data-frame-column
-
-```{r eval = FALSE}
-library(jsonlite)
-
-json <- read_json("../data/AOR_df_2020-06-24.json", simplifyVector = TRUE)
-
-json <- json %>% as_tibble()
-
-# test
-j <- json %>% 
-  select(MoundID, Municipality,Region, Lat, Long, `Error radius(m)`, 
-    LU_Around, MoundCover, Geomorphology, Prominence, MoundName, GT, RT,Condition, 
-    `Source of Impact`, FirstStartDate, 
-   MaxEndDate, FirstEnclosureType, 
-    ) %>% 
-  unnest(cols = c(MoundID, Municipality,Region, Lat, Long, `Error radius(m)`, 
-    LU_Around, MoundCover, Geomorphology, Prominence, MoundName,GT, RT,Condition, 
-    `Source of Impact`,  FirstStartDate, 
-   MaxEndDate, FirstEnclosureType, 
-     ))
-j
-# numbers in columns seem to be a problem:
-
-BApotential <- j %>% 
-  filter(Region == "Yambol") %>%
-  filter(FirstStartDate < -2000)
-  
-BApotential
-
-
-```

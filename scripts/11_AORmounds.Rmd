@@ -1,0 +1,61 @@
+---
+title: "Excavated Mounds in the AOR"
+author: "Adela Sobotkova"
+date: "2022-12-14"
+output: html_document
+---
+
+This rmarkdown is not usable yet, just dumping preliminary AOR loading code chunks. To be elaborated.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## # Excavated mounds from Yambol based on AORs
+
+```{r load-AOR-google, eval = FALSE}
+library(googlesheets4)
+gs4_deauth()
+
+
+general <- read_sheet("https://docs.google.com/spreadsheets/d/1l2glM1X8eiWFArunnnTG6iGdWUvcd7LVBYiFcbjBDJQ/edit#gid=1761342759&fvid=1870098839")
+mound <- read_sheet("https://docs.google.com/spreadsheets/d/1l2glM1X8eiWFArunnnTG6iGdWUvcd7LVBYiFcbjBDJQ/edit#gid=1172661582", range = "MoundAttributes")
+burial <- read_sheet("https://docs.google.com/spreadsheets/d/1l2glM1X8eiWFArunnnTG6iGdWUvcd7LVBYiFcbjBDJQ/edit#gid=1172661582", range = "BurialAttributes")
+
+# here I can join them all and play.
+```
+Alternatively, and better perhaps, I can load the merged data in json format from \url{https://sciencedata.dk/index.php/apps/files/?dir=%2FSDAM_root%2FSDAM_data%2Fmounds&id=7813458&owner=648597%40au.dk} sciencedata.dk, unlist and work with
+These Izvestia_df.json and AOR_df.json have been downloaded in data folder
+Some guidance on unnesting:
+https://stackoverflow.com/questions/38860380/unnesting-a-list-of-lists-in-a-data-frame-column
+
+```{r eval = FALSE}
+library(jsonlite)
+
+json <- read_json("../data/AOR_df_2020-06-24.json", simplifyVector = TRUE)
+
+json <- json %>% as_tibble()
+
+# test
+j <- json %>% 
+  select(MoundID, Municipality,Region, Lat, Long, `Error radius(m)`, 
+    LU_Around, MoundCover, Geomorphology, Prominence, MoundName, GT, RT,Condition, 
+    `Source of Impact`, FirstStartDate, 
+   MaxEndDate, FirstEnclosureType, 
+    ) %>% 
+  unnest(cols = c(MoundID, Municipality,Region, Lat, Long, `Error radius(m)`, 
+    LU_Around, MoundCover, Geomorphology, Prominence, MoundName,GT, RT,Condition, 
+    `Source of Impact`,  FirstStartDate, 
+   MaxEndDate, FirstEnclosureType, 
+     ))
+j
+# numbers in columns seem to be a problem:
+
+BApotential <- j %>% 
+  filter(Region == "Yambol") %>%
+  filter(FirstStartDate < -2000)
+  
+BApotential
+
+
+```

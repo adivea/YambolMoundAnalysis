@@ -1,0 +1,229 @@
+---
+title: "Visibility"
+author: "Adela Sobotkova"
+date: "2022-12-14"
+output: html_document
+---
+## Purpose and prerequisites:
+This script serves to elaborate the calculation of mutual intervisibility (clear line of sight) between various archaeological features, starting here with burial mounds in the Yambol Region and ASTER elevation raster (30m spatial resolution). 
+
+The script basically works, calculating linestrings, intervisibility between Yam_mounds and generating maps
+
+You need: 
+- to run 09 BA mounds to have the necessary libraries and digital objects
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE)
+library(sf)
+library(raster)
+library(tidyverse)
+```
+
+## Load 2009-2022 data
+```{r load-mounds}
+
+Y_elev <- raster("../output_data/large/Yelev32635.tif")
+# Yambol mounds
+Yam_mnds <- readRDS("../output_data/Yam_mnds.rds")
+head(Yam_mnds)
+```
+# Bronze Age mounds from Toshko
+
+Drazhevo - Height: 2.7 m; Diameter: 37.0 m; Land: pasture on the rocky area
+Straldzha - Height: 4.0 m; Diameter: 50.0 m; Land: wines and pasture
+Popovo - Height: 6.8 m; Diameter: 48.0 m; Land: wines and pasture
+
+8345 Mogila village - Height: 3.2 m; Diameter: 37.6 m; Land: pasture on the rocky area 
+
+
+```{r BA-faims, include = FALSE}
+# Filter out the BA mounds from the FAIMS data
+bronze <- c(6009,8007,6010,8345,8346,8357, 8502, 8351, 9257)
+BA <- Yam_mnds %>% 
+  filter(TRAP %in% bronze)
+
+# Add literature dimensions to mound 8345, which was excavated before survey 
+BA$DiameterMax[5] <- 37.5
+BA$HeightMax[5] <- 3.2
+
+```
+
+```{r BA-Todor, include = FALSE}
+# Add the few mounds excavated before TRAP coverage >> these should be pulled out of the AOR dataset to get the Height, Diameter and other dimensions..
+extras <- data.frame(place = c("Drazhevo", 
+                           "Straldzha",
+                           "Popovo"),
+                 Easting=c(455442,479522,479391),
+                 Northing=c(4710935,4715730,4668279),
+                 HeightMax=c(2.7,4.0,6.8),
+                 DiameterMax = c(37,50,48),
+                 LU_Around = c("Pasture","Perennial","Perennial"),
+                 Type = c("Burial Mound","Burial Mound","Burial Mound"),
+                 Source = c("Excavation","Excavation","Excavation"))
+extrasf <- st_as_sf(extras, coords =c("Easting", "Northing"), crs = 32635)
+
+```
+
+```{r BA-combo, include = FALSE}
+# Combine both BA datasets and spatialize
+library(plyr)
+BApoints <- rbind.fill(BA, extrasf)
+BAcoords <- rbind(st_coordinates(BA) ,st_coordinates(extrasf))
+BApoints <- cbind(BApoints, BAcoords)
+BApoints <- st_as_sf(BApoints, coords = c("X", "Y"), crs = 32635)
+```
+
+## Linestring creation
+
+Let's first see if we an create linestrings to later signal which mounds can *see* each other.
+```{r linestring}
+# Test linestring creation from one origin and multiple target points. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
+coords <- as.matrix(cbind(as.data.frame(st_coordinates(extrasf$geometry[2])),
+                as.data.frame(st_coordinates(BApoints$geometry))))
+
+lines_sm <-  st_sfc(
+     lapply(1:nrow(coords),
+           function(i){
+             st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
+           }))
+
+st_crs(lines_sm) <- st_crs(BApoints)
+
+
+library(mapview)
+mapview(lines_sm)+mapview(BApoints)
+
+# https://stackoverflow.com/questions/65498300/how-to-efficiently-create-linestrings-from-points
+# https://stackoverflow.com/questions/58150279/plotting-lines-between-two-sf-point-features-in-r
+```
+ 
+## Intervisibility
+
+Intervisibility in human terms mean that two or more points in the landscape have a clear line of sight between them (given reasonable visibility). In computational terms, it means that a straight line connecting the z values of the A and B (the two end-points) does not intersect a polygon formed by terrain profile between them. If it doesn't, A can see B.
+Let's test such line of sight by extracting data out of raster cells between our BA points.
+
+https://stackoverflow.com/questions/21841387/r-code-that-evaluates-line-of-sight-los-between-two-lat-lon-points 
+
+https://gis.stackexchange.com/questions/272122/performing-viewshed-analysis-in-r
+```{r define-cansee-functions}
+cansee <- function(r, xy1, xy2, h1=0, h2=0){
+### can xy1 see xy2 on DEM r?
+### Y_elev is a DEM in same x,y, z units
+### xy1 and xy2 are 2-length vectors of x,y coords
+### h1 and h2 are extra height offsets
+###  (eg top of mast, observer on a ladder etc)
+    xyz = rasterprofile(r, xy1, xy2)
+    np = nrow(xyz)-1
+    h1 = xyz$z[1] + h1
+    h2 = xyz$z[np] + h2
+    hpath = h1 + (0:np)*(h2-h1)/np
+    return(!any(hpath < xyz$z))
+}
+
+
+
+viewTo <- function(r, xy, xy2, h1=0, h2=0, progress="none"){
+    ## xy2 is a matrix of x,y coords (not a data frame)
+    require(dplyr)
+    apply(xy2, 1, function(d){cansee(r,xy,d,h1,h2)}, .progress=progress)
+}
+
+viewTo <- function(r, xy, xy2, h1=0, h2=0){
+    ## xy2 is a matrix of x,y coords (not a data frame)
+    require(dplyr)
+    apply(xy2, 1, function(d){cansee(r,xy,d,h1,h2)})
+}
+
+rasterprofile <- function(r, xy1, xy2){
+### sample a raster along a straight line between two points
+### try to match the sampling size to the raster resolution
+    dx = sqrt( (xy1[1]-xy2[1])^2 + (xy1[2]-xy2[2])^2 )
+    nsteps = 1 + round(dx/ min(res(r)))
+    xc = xy1[1] + (0:nsteps) * (xy2[1]-xy1[1])/nsteps
+    yc = xy1[2] + (0:nsteps) * (xy2[2]-xy1[2])/nsteps
+    data.frame(x=xc, y=yc, z=r[cellFromXY(r,cbind(xc,yc))])
+}
+```
+Let's test these with real data (BA points 8346, 8007 and Drazhevo)
+
+```{r rasterprofile}
+BApoints[c(3,6,10),]
+m8007 <- c(st_coordinates(BApoints)[3,],h= BApoints$HeightMax[3])
+m8346 <- c(st_coordinates(BApoints)[6,],h= BApoints$HeightMax[6])
+mDrazh<- c(st_coordinates(BApoints)[10,],h= BApoints$HeightMax[10])
+
+Y_elev
+
+test_see <- cansee(Y_elev, m8007, m8346, h1 = m8007[3]  , h2 = m8346[3])
+test_see
+
+# Create a terrain profile and plot it to check potential intervisibility
+testprofile <- rasterprofile(Y_elev,  m8007, m8346)
+testprofile <- rasterprofile(Y_elev,  m8007, mDrazh)
+testprofile <- rasterprofile(Y_elev,  mDrazh, m8346)
+
+# Plot
+plot(testprofile$z, type = "b"); 
+
+# create the connecting line between origin and destination points
+x = c(0,nrow(testprofile))
+y = testprofile$z[c(1,nrow(testprofile))]
+
+# Plot profile with start and end point elevation
+plot(testprofile$z, type = "l", main = "Terrain profile between mounds 8346 and Drazhevo", 
+     ylab = "Elevation(m)", xlab = "Mound distance (*30m)"); 
+lines(x,y, col = "red", lwd = 2)
+```
+
+None of these mounds can see each other, because the one on top of the Zaichi Vrah is obscured by the hill and not aimed at the mounds to the SE. 
+Let's test the intervisibility between these three and other mounds in the surroundings from the Yambol Mounds dataset. We will use the viewTo() function and the starting coordinates of the three mounds.
+
+```{r view-to-8007, warning=FALSE}
+# First we need to convert the Yambol mounds to a matrix of coordinates
+coords <- data.frame(st_coordinates(Yam_mnds),h=Yam_mnds$HeightMax)
+missingHeight <- which(is.na(coords$h))
+mnd_missH <- Yam_mnds$TRAP[missingHeight]
+
+coords <- coords %>% 
+  filter(!is.na(h))
+coords_m <- as.matrix(coords)
+
+# viewTo() working with 3 points
+testview <- viewTo(Y_elev, m8007, rbind(m8346,mDrazh))
+
+# with all points (uncomment if you wish to regenerate!)
+# testview <- viewTo(Y_elev, m8007, coords_m,m8007[3], coords_m[,3])
+# length(testview)
+
+
+# # See which ones can see 8007
+# '%nin%' = Negate('%in%')
+# viewTo_8007 <- Yam_mnds %>% 
+#   filter(TRAP %nin% mnd_missH) %>%   # must first filter away missing heights as I did with coordinates
+#   filter(testview) # use the logical vector to filter the Yam_mnds rows
+
+# 289 mounds can see mound 8007
+# saveRDS(viewTo_8007, "../output_data/MoundsVisfrom8007.rds")
+viewTo_8007 <- readRDS("../output_data/MoundsVisfrom8007.rds")
+```
+
+View these 289 mounds visible from 8007
+```{r plot-visible}
+# Test linestring creation from one origin and multiple target points. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
+coords <- as.matrix(cbind(rep(m8007[1], 289),rep(m8007[2], 289), st_coordinates(viewTo_8007)))
+
+lines <-  st_sfc(
+     lapply(1:nrow(coords),
+           function(i){
+             st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
+           }))
+
+st_crs(lines) <- st_crs(BApoints)
+
+library(mapview)
+library(leafsync)
+m1 <- mapview(lines) + mapview(viewTo_8007, cex = 4) + mapview(BApoints[3,], cex = 10)
+m2 <- mapview(viewTo_8007, zcol = "prom250mbuff")
+sync(m1,m2)
+```
+
