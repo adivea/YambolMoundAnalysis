@@ -25,7 +25,14 @@ opts_knit$set(width=75)
 
 ## Data Loading and Preparation
 
-This script prepares the data for follow up analysis. It helps you load the FAIMS data from 2009-2018 and 2022 on burial mounds from Yambol as well as associated Yambol region vectors and elevation rasters. It uses the latter for mound data enrichment. Its outputs are:
+This script prepares the data for follow up analysis. It helps you load the FAIMS data from 2009-2018 and 2022 on burial mounds from Yambol as well as associated Yambol region vectors and elevation rasters. It uses the latter for mound data enrichment.
+The needed inputs are:
+
+- raw data on mounds (provided)
+- Turkish and SE Bulgarian Aster images (not provided - LINK needed)
+
+
+Its outputs are:
 
 - an aggregate dataset of FAIMS features with attributes such as ASTER elevation, topographic prominence, roughness etc. 
 - mosaiced raster that fits the confines of the Yambol Province
@@ -116,7 +123,7 @@ rm(list = c("mounds22_1","mounds22_2", "mounds22", "mnd"))
 # Load vectors
 bg_border <- st_read("../data/Bulgaria_Border.shp")
 Y_towns <- st_read("../data/Modern_settlements_Yambol_TRAP.shp")
-towns <- st_read("C:/Users/Adela/Documents/Professional/Projects/MQNS/GIS/Vectors/Yamurbanarea.shp") # towns within 15km buffer of Yambol boundary exported from JICA
+#towns <- st_read("~/../Documents/Professional/Projects/MQNS/GIS/Vectors/Yamurbanarea.shp") # towns within 15km buffer of Yambol boundary exported from JICA
 Y_region <- st_read("../data/YamRegion.shp")
 
 ```
