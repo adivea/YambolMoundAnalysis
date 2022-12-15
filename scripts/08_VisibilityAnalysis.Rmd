@@ -227,3 +227,64 @@ m2 <- mapview(viewTo_8007, zcol = "prom250mbuff")
 sync(m1,m2)
 ```
 
+## Distance to zemlishte central settlement
+AKB asks for distance and azimuth to the nearest village (in zemlishte)
+
+```{r load-distance}
+village <- read_sf("../data/ElhStr_towns.shp")
+data22 <- read_sf("../data/ElhStr_features.shp")
+```
+
+### Wrangle the features and nearest municipality centers (which need not be the geographically nearest places)
+```{r}
+# Subset the features 2022 data to only TRAP numbers and the name of the belonging village
+features22 <- data22 %>%
+  dplyr::select(TRAP,EKATTE, Name_en)
+
+# Create a simple feature of village points ordered by the TRAP numbers from the features 22 dataset,   
+villages22 <- features22 %>% 
+  st_drop_geometry() %>%  # dropping feature geometry
+  left_join(village, by = "EKATTE") %>%  #joining village geometry to TRAP numbers
+  dplyr::select(-Descr_bg, -Name_bg, -Suffix_bg, -Suffix_en)
+villages22
+```
+
+### Calculate distances
+```{r}
+features22$distToTown <- st_distance(features22$geometry, villages22$geometry, by_element = TRUE)
+ls('package:sf')
+```
+
+### Calculate azimuth
+
+I use the nngeo package of Michael Dorman as it calculates "planar" /geometric azimuth (https://michaeldorman.github.io/nngeo/index.html).
+sf library works in geometric /planar space and so 
+The other geosphere::azimuth which calculates geographic azimuth in latlong coordinates.(https://stackoverflow.com/questions/51030060/in-geosphere-package-in-r-why-arent-bearings-in-0-360-degrees) 
+
+
+```{r}
+install.packages("remotes")
+remotes::install_github("michaeldorman/nngeo")
+features22$azimuth <- nngeo::st_azimuth(features22$geometry, villages22$geometry)
+```
+
+### Export for Toshko
+```{r}
+# All 479 features from the Elhovo and Straldzha municipality (2010-2022)
+write.csv(features22 %>% st_drop_geometry(), "../output_data/features22forToshko.csv")
+
+# Only 238 features collected in 2022 in the Elhovo and Straldzha municipality
+library(mapview)
+features22 %>% 
+  filter(TRAP %in%mnd22$TRAP) %>% 
+  mapview()
+
+# Only 311 features collected in 2010-2022 in the Elhovo municipality
+mun <- read_sf("../data/Yam_Municipalities.shp")
+
+library(sf)
+features22$geometry %>% 
+  sf::st_intersection(mun[4,]) %>% 
+  mapview()
+```
+
