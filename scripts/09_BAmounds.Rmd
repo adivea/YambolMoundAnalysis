@@ -5,10 +5,13 @@ date: "2022-11-17"
 output: html_document
 ---
 
+This script summarizes environmental information on the Bronze Age burial mounds in the Yambol Province, and plots 
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(sf)
 library(raster)
+library(plyr)
 library(tidyverse)
 ```
 
@@ -19,18 +22,14 @@ Yam_mnds <- readRDS("../output_data/Yam_mnds.rds")
 Y_region <- st_read("../data/YamRegion.shp")
 head(Yam_mnds)
 ```
-# Bronze Age mounds from Toshko
+## Excavated Bronze Age mounds
 
-Drazhevo - Height: 2.7 m; Diameter: 37.0 m; Land: pasture on the rocky area
-Straldzha - Height: 4.0 m; Diameter: 50.0 m; Land: wines and pasture
-Popovo - Height: 6.8 m; Diameter: 48.0 m; Land: wines and pasture
-
-8345 Mogila village - Height: 3.2 m; Diameter: 37.6 m; Land: pasture on the rocky area 
-
+We now need to separate out the mounds originating from the Bronze Age as confirmed by excavation. 
+First, let's filter mounds by TRAP id from the TRAP survey mound dataset and second, we will create spatial data for the excavated mounds.
 
 ```{r BA-faims}
 # Filter out the BA mounds from the FAIMS data
-bronze <- c(6009,8007,6010,8345,8346,8357, 8502, 8351, 9257)
+bronze <- c(6009,8007,6010,8345,8346,8357, 8502, 8351, 9257) # Toshko provided these TRAP numbers
 BA <- Yam_mnds %>% 
   filter(TRAP %in% bronze)
 
@@ -39,9 +38,16 @@ BA$DiameterMax[5] <- 37.5
 BA$HeightMax[5] <- 3.2
 
 ```
+I tested this chunk with mound 6011 instead of 6010, because the image for 6011 looks excavated but its prominence was less than 6% as it sits on a flat ridge 
+
+Todor specified the coordinates and other data for the excavated mounds as:
+Drazhevo - Height: 2.7 m; Diameter: 37.0 m; Land: pasture on the rocky area
+Straldzha - Height: 4.0 m; Diameter: 50.0 m; Land: wines and pasture
+Popovo - Height: 6.8 m; Diameter: 48.0 m; Land: wines and pasture
+8345 Mogila village - Height: 3.2 m; Diameter: 37.6 m; Land: pasture on the rocky area 
 
 ```{r BA-Todor}
-# Add the few mounds excavated before TRAP coverage >> these should be pulled out of the AOR dataset to get the Height, Diameter and other dimensions..
+# Add the few mounds excavated before TRAP coverage >> these can also be pulled out of the AOR dataset
 extras <- data.frame(place = c("Drazhevo", 
                            "Straldzha",
                            "Popovo"),
@@ -54,23 +60,24 @@ extras <- data.frame(place = c("Drazhevo",
                  Source = c("Excavation","Excavation","Excavation"))
 extrasf <- st_as_sf(extras, coords =c("Easting", "Northing"), crs = 32635)
 
-library(plyr)
 ```
 
-
+Combine the excavated and survey data
 ```{r BA-combo}
 # Combine both BA datasets and spatialize
-BApoints <- rbind.fill(BA, extrasf)
-BAcoords <- rbind(st_coordinates(BA) ,st_coordinates(extrasf))
-BApoints <- cbind(BApoints, BAcoords)
-BApoints <- st_as_sf(BApoints, coords = c("X", "Y"), crs = 32635)
+BApoints <- rbind.fill(BA, extrasf) # combine the attributes by row
+BAcoords <- rbind(st_coordinates(BA) ,st_coordinates(extrasf)) # combine coordinates
+BApoints <- cbind(BApoints, BAcoords) # add coordinate column to the attributes
+BApoints <- st_as_sf(BApoints, coords = c("X", "Y"), crs = 32635) # convert to a simple feature
 tail(BApoints)
 ```
 
-## Look where these mounds are
+## Map the mounds
+
+Compare the excavated Bronze Age mound location with the other Yambol mounds
 ```{r}
 library(mapview)
-mapview(Yam_mnds, cex = 2) + mapview(BApoints)
+mapview(Yam_mnds, cex = 2) + mapview(BApoints) #using just the coordinates
 ```
 
 ```{r}
@@ -84,22 +91,25 @@ plot(BApoints$geometry, pch = 16, col = "red", add =T)
 
 
 
-# Extract promience and elevation data from raster
-```{r raster-extract}
+# Extract prominence and elevation data from raster
+Location alone does not tell us much about the mounds. Let's extract additional values from the underlying 30m res ASTER imagery so we can compare the mounds' location formally.
+
+We first load the ASTER layer and a derived slope and aspect raster.
+```{r raster-load}
 Y_elev <- raster("../output_data/large/Yelev32635.tif")
 Y_aspslope <- brick("../output_data/large/Yaspslope.tif")
 ```
 
+Next, we extract values from raster at mound locations. 
 
-# Extract raster values for BA mounds (elevation and prominence)
-Ideally, when grabbing the excavated mounds, I get the information from the AOR reports, so have as complete a record of the morphology as possible
+An  alternative to extraction is to, when grabbing the excavated mounds, get the information from the AOR reports, so as to have as complete a record of the morphology as possible. Here I enrich the BA mound data with environmental information extracted from ASTER raster. I simply overwrite the data where it exists so as to be consistent
 ```{r sample-elev-aspect-slope-22}
-# Mound data
-BA_points <- BApoints %>% 
-  dplyr::select(-elevAster) %>% 
-  dplyr::select(-aspectAster) %>% 
-  dplyr::select(-prom250mbuff) %>% 
-  dplyr::select(-slopeAster)
+# Streamline mound data by killing and regenerating some columns. Commented out, as I overwrite them 
+# BApoints <- BApoints %>% 
+#   dplyr::select(-elevAster) %>% 
+#   dplyr::select(-aspectAster) %>% 
+#   dplyr::select(-prom250mbuff) %>% 
+#   dplyr::select(-slopeAster)
 
 # Sample elevations at mound locations
 BApoints$elevAster <- raster::extract(Y_elev, st_coordinates(BApoints))
@@ -122,23 +132,26 @@ BApoints$prom250mbuff <- raster::extract(Y_elev,# raster containing elevation da
 
 ```
 
-## Plot the environ data
-```{r}
-?mapview
-mapview(Yam_mnds, zcol = "prom250mbuff", label = "TRAP")
-mapview(BApoints, zcol ="prom250mbuff")
-```
-## Tabulate the BA data
+## Plot BA mounds with the prominence
+```{r mapview-prom-BA}
+library(leafsync)
 
-```{r}
-summary(BApoints)
+pr <- mapview(BApoints, zcol ="prom250mbuff")
+tri <- mapview(BApoints, zcol = "TRI")
+sync(pr, tri)
+```
+## Summarize the BA mound data
+
+```{r table-BA}
+summary(BApoints[,12:18])
 BApoints %>% 
   st_drop_geometry() %>% 
   dplyr::select(TRAP, HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff, LU_Around, LU_Top)
 
 ```
-make the values in table more visible
-```{r}
+The mean value for prominence in BA mounds is 66 while median is 71%, which is top quartile of the data. We may be able to extend this finding to the other Yambol mounds.
+The mean might be higher if the two low-prominence mounds were not included (6010 and 8351)
+```{r table-prom}
 library(formattable)
 
 highlight <- color_tile("yellow","yellow")
@@ -154,7 +167,24 @@ formattable(BApoints %>%
 
 ```
 
-While most mounds are in areas of high natural prominence, two exceptions confirm the rule: 6010 and 8351 are in low-lying non-prominent areas. The low scores may be caused by the coarse resolution of the 30m ASTER image which smooths over small-scale outcrops. The other option is that the mound-builders cared less about high location, sought dissociation from mounds on outcrops (already standing), or hoped to imbue the mound with prominence by raising its height.
+While most mounds are in areas of high natural prominence, two exceptions confirm the rule: 6010 and 8351 are in non-prominent areas. The low (~30%) scores may be caused by the coarse resolution of the 30m ASTER image which smooths over small-scale outcrops. In case of [6010](https://drive.google.com/file/d/1FA0u-wfDa833nJ3AJsMz-YrGdUVZaKj9/view?usp=sharing) /[6011](https://drive.google.com/file/d/0B-3SQVhaYJT8akZxX2s2aDNVMTQ/view?usp=sharing&resourcekey=0--m1nV2vPcDUaUMz9_-NCnw) and [8351](https://drive.google.com/file/d/1z89LtciUJxqdxofzierwLEaiQLlb7tHL/view?usp=sharing), the 250m radius disadvantages mounds located on elevated platforms. These may have reasonable visibility of the surrounding landscape but are either on a lower upslope or flat ridge (6011) which lowers the results within the 250m radius. The other option is that the mound-builders cared less about high location, sought dissociation from mounds on outcrops (already standing), or hoped to imbue the mound with prominence by raising its height.
+
+
+The mean and median prominence values for BA mounds can provide a guide for other potentially Bronze Age mounds (if we choose a single factor)
+The following map will show the mounds within the Yambol dataset that have prominence higher than the mean of 66% (303 features) and whose topographic ruggedness is over the mean of 1.35 (72). The lighter the point color the higher their prominence and the more probable their Bronze Age origin 
+```{r}
+library(mapview)
+library(leafsync)
+m71 <- Yam_mnds %>% 
+  filter( prom250mbuff > 71 & Type == "Burial Mound" & TRI >1.35) %>% 
+  mapview(zcol = "prom250mbuff")
+m66 <- Yam_mnds %>% 
+  filter(prom250mbuff > 66 & Type == "Burial Mound") %>% 
+  mapview(zcol = "prom250mbuff")
+BA <- mapview(BApoints)
+sync(m66,m71, BA, ncol=3)
+```
+
 
 ### Height Boxplots
 ```{r}
@@ -166,22 +196,22 @@ boxplot(BApoints$HeightMax[BApoints$HeightMax>0], Yam_mnds$HeightMax[Yam_mnds$He
 ```{r}
 Yam_mnds %>% 
   ggplot() +
-  geom_histogram(aes(y=elevAster))  +
-  geom_histogram(data = BApoints, aes(y=elevAster), fill = "yellow") +
-  labs(title = "Elevation in Yambol and BA mounds(in yellow)",
+  geom_histogram(aes(y=elevAster), binwidth = 10)  +
+  geom_histogram(data = BApoints, aes(y=elevAster), fill = "yellow", binwidth = 10) +
+  labs(title = "Elevation of the Yambol region and Bronze Age mounds (in yellow)",
        y = "Elevation (m)",
-       x = "Count")
+       x = "Count")+
   theme_bw()
 ```
 ### Prominence comparison
 ```{r}
 Yam_mnds %>% 
   ggplot() +
-  geom_histogram(aes(x=prom250mbuff))  +
-  geom_histogram(data = BApoints, aes(x=prom250mbuff), fill = "yellow") +
+  geom_histogram(aes(x=prom250mbuff), binwidth = 2)  +
+  geom_histogram(data = BApoints, aes(x=prom250mbuff), fill = "yellow", binwidth = 2) +
   labs(title = "Prominence of Yambol relief and BA mounds (in yellow)",
        x = "Prominence (%)",
-       y = "Count")
+       y = "Count")+
   theme_bw()
 
 ```
