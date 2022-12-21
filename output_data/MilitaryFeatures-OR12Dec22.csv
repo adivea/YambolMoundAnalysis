@@ -1,4 +1,4 @@
-Column,MoundID,Type,DescriptionOfMoundOrLocale,PositionInTheLandscape,Condition,Feature_Facing,FacingDirection,Image_Verification,CentralFeature
+﻿Column,MoundID,Type,DescriptionOfMoundOrLocale,PositionInTheLandscape,Condition,Feature_Facing,FacingDirection,Image_Verification,CentralFeature
 11,8230,Uncertain Feature,could be a burial mound but is most probably a modern structure such as a bunker ,Valley Bottom or Plain,4 - seriously damaged,Cannot tell,NA,Bunker,Bunker
 20,8515,Other,huge rectangular bunker from the cold war,Hilltop,0 - No observation,Not Recorded,NA,Bunker,Bunker
 38,9653,Uncertain Feature,possible tank enclosure or ditch made by farmers,Hilltop,0 - No observation,Northeast,Northeast,Vehicle emplacement,Vehicle emplacement
@@ -6,7 +6,7 @@ Column,MoundID,Type,DescriptionOfMoundOrLocale,PositionInTheLandscape,Condition,
 41,9654,Uncertain Feature,tank enclosure - noticed en route from 9653,Hilltop,0 - No observation,South,South,Vehicle emplacement,Vehicle emplacement
 42,8244,Other,a dug out approx  20m east from the previous tank emplacement (#8243,Hilltop,4 - seriously damaged,East,East,Tank emplacement,Tank emplacement
 43,9655,Other,tank enclosure,Hilltop,0 - No observation,South,South,Tank emplacement,Tank emplacement
-44,8245,Other,"1m high, stoney, military protrusion from landscape",Lower slope,3 - damaged,South,South,Uncertain,Uncertain
+44,8245,Other,"1m high, stoney, military protrusion from landscape",Lower slope,3 - damaged,South,South,Uncertain,
 45,9656,Other,tank enclosure,Hilltop,0 - No observation,South,South,Vehicle emplacement,Vehicle emplacement
 46,8246,Other,tank emplacement approx 1.5m deep and 8m long. could possibly be the site of an extinct mound d but now it is simply a depression from tank emplacement,Lower slope,4 - seriously damaged,South,South,Vehicle emplacement,Vehicle emplacement
 47,8247,Other,trench against the Turkish in cold war,Lower slope,3 - damaged,South,South,Infantry trench,Infantry trench
@@ -80,3 +80,4 @@ Column,MoundID,Type,DescriptionOfMoundOrLocale,PositionInTheLandscape,Condition,
 212,8798,Extinct Burial Mound (bunker with trenches),"Mound on field southeast of elhovo. there is a geodetic marker that indicates the preexisting mound. poorly visible from the east. scrub all over. mound replaced by a bunker. bunker access completely obscured by Scrubby bushes, except from the east.",,5 - extinct or near extinct,Not Recorded,NA,Bunker,Bunker
 2371,8658,Burial Mound,"South from Nedyalsko village,  a military trench at its west",Upper slope,4 - seriously damaged,Not Recorded,NA,Vehicle emplacement,Vehicle emplacement
 254,8666,Other,"bunker, overgrown,  concrete well-liks structure on the top, stone structure inside,  possibly a reservoir ",Lower slope,3 - damaged,Not Recorded,NA,Bunker,Bunker
+,,,,,,,,,

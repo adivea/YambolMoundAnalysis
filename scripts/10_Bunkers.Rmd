@@ -37,7 +37,8 @@ Yam_mil <- read_csv("../output_data/MIlitaryFeatures-OR12Dec22.csv")
 
 ### Explore the data a bit
 ```{r}
-head(Yam_mil)
+tail(Yam_mil)
+Yam_mil <- Yam_mil[-79,]
 
 unique(Yam_mil$FacingDirection)
 unique(Yam_mil$CentralFeature)
@@ -66,8 +67,124 @@ Yam_bunkers <- Yam_mnds %>%
 
 
 library(mapview)
-Yam_bunkers$CentralFeature
+Yam_bunkers$CentralFeature <- factor(Yam_bunkers$CentralFeature
+)
+levels(Yam_bunkers$CentralFeature) <- c("Bunker", "Infantry trench","Tank emplacement","Vehicle emplacement")
+
 mapview(Yam_mnds, cex = 1) + mapview(Yam_bunkers, zcol = "CentralFeature")
+```
+## Great, let's get really plotting
+
+circle = bunkers, 19, 20, 21 - color fill
+square = trench, 7, 22
+u/horseshoe = emplacement, 18, 25
+mund triangle - 2,17,24
+
+Maps: 
+1: Yambol with all mounds with an inset of BG (no topography, minimalist graphics)
+2: Border region with mounds and military installations visually differentiated
+3: Typology of mil.installations
+4: Sitovo site with different installations?
+
+## Yambol with an inset of BG - Leaflet
+
+```{r}
+library(leaflet)
+library(leafem)
+leaflet() %>% 
+  addProviderTiles("Esri.WorldImagery") %>% 
+  addCircleMarkers(data = st_transform(Yam_bunkers, 4326)) %>% 
+  addMiniMap(toggleDisplay = TRUE,
+             position = "bottomright")
+
+```
+
+## Bulgaria inset preparation
+```{r}
+BG <- getData('GADM', country = 'BG', level = 0)
+BG <- st_transform(st_as_sf(BG), 32635)
+
+#BGregion <- getData('GADM', country = 'BG', level = 2)
+plot(BG$geometry, col = "lightgrey", border = "grey"); plot(Y_region$geometry,col = "darkgrey", border= "darkgrey", add = T)
+```
+
+Prepare to print with the inset
+```{r}
+library(tmaptools)
+library(grid)
+
+# change back to the plotting mode
+#tmap_mode("plot")
+
+# pdf("figures/Figure01.pdf", width = 5)
+# PPAP
+overview2
+
+# print insets
+print(greece, vp=viewport(x= 0.17, y= 0.21, width= 0.3, height= 0.3))
+
+#dev.off()
+```
+
+Tmap differentiating Yambol mounds/features and military installations
+
+
+```{r}
+library(tmap)
+tm_shape(Yam_mnds, bbox = st_bbox(Y_region))+
+  tm_symbols(shape = 2, col="#666666", size = 0.02) +
+tm_shape(Y_region) +
+ tm_borders(col = "grey", 
+              lwd = 2)+
+tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) + 
+  # tm_polygons(col="cornsilk2", border.alpha = 0)+
+  # tm_shape(features) + 
+  tm_symbols(shape = 2, col="red", size = 0.1) +  #6 and 26 are downward triangles
+  tm_compass(type = "arrow", 
+             position = c("left", "bottom")) +
+  tm_scale_bar(position = c("left", "bottom"),
+               breaks = c(0,5,10), 
+               text.size = 0.75) + 
+  #tm_credits("Sobotkova 2020", position = c("right", "bottom"), size = 0.8) +
+  #tm_layout(title = "Registered standing features") 
+  tm_layout(title = "A")
+
+  
+  tm_layout(main.title = "Yambol and Bulgaria",
+            legend.outside = FALSE)
+```
+Local typology
+```{r}
+library(tmap)
+tm_shape(Yam_bunkers, bbox = st_bbox(Yam_bunkers)) + 
+  tm_dots(
+          # col = "CentralFeature", 
+          col = "grey",
+           shape = "CentralFeature", #6 and 26 are downward triangles
+           title = "Registered military features",
+          alpha= 0.6,
+             size = 0.3) +  
+tm_shape(Y_region) +
+ tm_borders(col = "grey",
+              lwd = 2)+
+  tm_compass(type = "arrow", 
+             position = c("left", "bottom")) +
+  tm_scale_bar(position = c("left", "bottom"),
+               breaks = c(0,5,10), 
+               text.size = 0.75)  +
+  tm_layout(title = "B", legend.show = FALSE)
+
+
+```
+Try facets
+```{r}
+tm_shape(Yam_bunkers) + 
+  tm_dots()+
+  tm_facets(by = "CentralFeature",free.coords = FALSE)+
+  tm_shape(Y_region) +
+ tm_borders(col = "grey",
+              lwd = 2) +
+  tm_style("cobalt")
 
 ```
 

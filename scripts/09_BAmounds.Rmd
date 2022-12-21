@@ -15,14 +15,14 @@ library(plyr)
 library(tidyverse)
 ```
 
-## Load 2009-2022 data
+## Load 2009-2022 mound data
 ```{r load-mounds}
 # Yambol mounds
 Yam_mnds <- readRDS("../output_data/Yam_mnds.rds")
 Y_region <- st_read("../data/YamRegion.shp")
 head(Yam_mnds)
 ```
-## Excavated Bronze Age mounds
+## Extract excavated Bronze Age mounds
 
 We now need to separate out the mounds originating from the Bronze Age as confirmed by excavation. 
 First, let's filter mounds by TRAP id from the TRAP survey mound dataset and second, we will create spatial data for the excavated mounds.
@@ -87,11 +87,7 @@ plot(BApoints$geometry, pch = 16, col = "red", add =T)
 
 ```
 
-
-
-
-
-# Extract prominence and elevation data from raster
+## Extract prominence and elevation data from raster
 Location alone does not tell us much about the mounds. Let's extract additional values from the underlying 30m res ASTER imagery so we can compare the mounds' location formally.
 
 We first load the ASTER layer and a derived slope and aspect raster.
@@ -133,6 +129,7 @@ BApoints$prom250mbuff <- raster::extract(Y_elev,# raster containing elevation da
 ```
 
 ## Plot BA mounds with the prominence
+In the next chunk we view the relative visual control of the surrounding terrain (prominence measures the percentage of area visible from mound within 360 degrees and 250m radius around the mound), and the accessibility. TRI is topographic ruggedness representing another measure of relative elevation above the terrain (it is only present in survey mounds ad needs to be calculated for all excav.mounds)
 ```{r mapview-prom-BA}
 library(leafsync)
 
@@ -140,17 +137,39 @@ pr <- mapview(BApoints, zcol ="prom250mbuff")
 tri <- mapview(BApoints, zcol = "TRI")
 sync(pr, tri)
 ```
-## Summarize the BA mound data
-
+## Tabulate and summarize the Bronze Age mound attributes
+Let us now look at some attributes of interest such as morphology, elevation, slope, etc.
 ```{r table-BA}
-summary(BApoints[,12:18])
-BApoints %>% 
+library(formattable)
+formattable(BApoints %>% 
   st_drop_geometry() %>% 
-  dplyr::select(TRAP, HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff, LU_Around, LU_Top)
+  dplyr::select(TRAP, HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff, LU_Around, LU_Top))
 
 ```
-The mean value for prominence in BA mounds is 66 while median is 71%, which is top quartile of the data. We may be able to extend this finding to the other Yambol mounds.
-The mean might be higher if the two low-prominence mounds were not included (6010 and 8351)
+We might as well summarize these values to get an idea of the range present in BA mounds
+```{r}
+summary(BApoints[,c(6:7,12:18)])
+```
+
+An average Bronze Age mound has the height of 3m, diameter around 30 m, the prominence mean of 66% and prominence median of 71%. TRI is around 1.35 and roughness at 4.  We may be able to extend these findings to the other Yambol mounds.
+
+Most mounds are located in pastures(5) or rock outcrops with sparse grass cover, some scrub(2) and occasionally vineyards(2) and agricultural fields(2).
+```{r}
+BApoints %>% 
+  st_drop_geometry() %>% 
+  group_by(LU_Around) %>% 
+  tally() %>% 
+  arrange(desc(n))
+
+BApoints %>% 
+  st_drop_geometry() %>% 
+  group_by(LU_Top) %>% 
+  tally() %>% 
+  arrange(desc(n))
+
+```
+As for the previous summary of attributes, the means are always deceptive, and small errors might cause big deviations (I think 6010 might be confused with 6011). The prominence mean, for example, might be higher if the two low-prominence mounds were not included (6010 and 8351)
+
 ```{r table-prom}
 library(formattable)
 
@@ -162,14 +181,28 @@ formattable(BApoints %>%
   area(col = 6, row = 2 ) ~ highlight,
   area(col = 6, row = 7 ) ~ highlight,
   area(col = 1, row = 2 ) ~ highlight,
-  area(col = 1, row = 7 ) ~ highlight
+  area(col = 1, row = 7 ) ~ highlight,
+  area(col = 6, row = 11 ) ~ highlight,
+  area(col = 1, row = 11) ~ highlight
   ))
 
 ```
 
+```{r}
+plot(BApoints %>%
+       st_drop_geometry() %>% 
+       dplyr::select(HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff))
+
+plot(Yam_mnds %>%
+       st_drop_geometry() %>% 
+       filter(Type == "Burial Mound") %>% 
+       dplyr::select(HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff))
+```
+
+
 While most mounds are in areas of high natural prominence, two exceptions confirm the rule: 6010 and 8351 are in non-prominent areas. The low (~30%) scores may be caused by the coarse resolution of the 30m ASTER image which smooths over small-scale outcrops. In case of [6010](https://drive.google.com/file/d/1FA0u-wfDa833nJ3AJsMz-YrGdUVZaKj9/view?usp=sharing) /[6011](https://drive.google.com/file/d/0B-3SQVhaYJT8akZxX2s2aDNVMTQ/view?usp=sharing&resourcekey=0--m1nV2vPcDUaUMz9_-NCnw) and [8351](https://drive.google.com/file/d/1z89LtciUJxqdxofzierwLEaiQLlb7tHL/view?usp=sharing), the 250m radius disadvantages mounds located on elevated platforms. These may have reasonable visibility of the surrounding landscape but are either on a lower upslope or flat ridge (6011) which lowers the results within the 250m radius. The other option is that the mound-builders cared less about high location, sought dissociation from mounds on outcrops (already standing), or hoped to imbue the mound with prominence by raising its height.
 
-
+## Predict mounds on the basis of prominence and TRI
 The mean and median prominence values for BA mounds can provide a guide for other potentially Bronze Age mounds (if we choose a single factor)
 The following map will show the mounds within the Yambol dataset that have prominence higher than the mean of 66% (303 features) and whose topographic ruggedness is over the mean of 1.35 (72). The lighter the point color the higher their prominence and the more probable their Bronze Age origin 
 ```{r}
@@ -184,25 +217,84 @@ m66 <- Yam_mnds %>%
 BA <- mapview(BApoints)
 sync(m66,m71, BA, ncol=3)
 ```
+## Predict BA mounds on basis of Landuse and size
+Over 3 m high and over 150masl, over 66% and 1.35 TRI
+```{r}
+withTRI <- Yam_mnds %>% 
+  filter(HeightMax > 3 & 
+           elevAster > 150 &
+        # DiameterMax > 30 &&
+        # LU_Around == "Scrub" | LU_Around == "Pasture" &&
+        #   LU_Top == "Pasture" | LU_Top == "Scrub" &&
+         prom250mbuff > 66 &
+         TRI > 1.35 &
+         Type == "Burial Mound" ) %>% 
+  mapview()
+withTRI
 
+
+```
+
+Over 3 m high and over 170masl and 71% prominence.
+```{r}
+library(mapview)
+library(leafsync)
+noTRI <- Yam_mnds %>% 
+  filter(HeightMax > 3 & 
+           elevAster > 170 &
+        # DiameterMax > 30 &&
+        # LU_Around == "Scrub" | LU_Around == "Pasture" &&
+        #   LU_Top == "Pasture" | LU_Top == "Scrub" &&
+         prom250mbuff > 66 &
+        # TRI > 1.35 &&
+         Type == "Burial Mound" ) %>% 
+          mapview()
+           
+BA <- mapview(BApoints)
+sync(BA,withTRI,noTRI, ncol=3)
+
+```
+
+## Table the potential BA mounds
+
+```{r}
+potentialBA <- Yam_mnds %>% 
+              st_drop_geometry() %>% 
+  filter(HeightMax > 3 & 
+           elevAster > 170 &
+         prom250mbuff > 66 &
+         Type == "Burial Mound" )
+#write.csv(potentialBA, "../output_data/potentialBA.csv")
+
+formattable(potentialBA)
+
+```
+
+## Height and Elevation comparisons between BA and Yambol mounds
 
 ### Height Boxplots
 ```{r}
+hist(BApoints$elevAster)
 boxplot(BApoints$HeightMax[BApoints$HeightMax>0], Yam_mnds$HeightMax[Yam_mnds$HeightMax>0], names = c("BA mounds", "all mounds"), main = "Maximum mound height")
 
 ```
 
 ### Elevations
 ```{r}
+
+#png(filename="../output_data/mndBAYam.png", width=300, height=450)
 Yam_mnds %>% 
   ggplot() +
-  geom_histogram(aes(y=elevAster), binwidth = 10)  +
-  geom_histogram(data = BApoints, aes(y=elevAster), fill = "yellow", binwidth = 10) +
-  labs(title = "Elevation of the Yambol region and Bronze Age mounds (in yellow)",
-       y = "Elevation (m)",
-       x = "Count")+
-  theme_bw()
+  geom_histogram(aes(x=elevAster,  fill = "All"), binwidth = 10)  +
+  geom_histogram(data = BApoints, aes(x=elevAster,  fill = "Bronze Age"),  binwidth = 10) +
+  labs(title = "Mound elevations in Yambol",
+       x = "Elevation (m)",
+       y = "Count")+
+  theme_bw()+
+  scale_fill_grey( name = "Mounds") + 
+  theme(legend.position = "bottom")#
 ```
+
 ### Prominence comparison
 ```{r}
 Yam_mnds %>% 
@@ -229,26 +321,49 @@ BApoints %>%
        y = "Height of feature",
        title = "Mound height by type")
 ```
-### Elevation densities
+### Prominence densities
 
-To get elevation plotted as densities rather than histograms, one must rerun ElevationMC script.
+To get prominence plotted as densities rather than histograms, one must rerun ProminenceMC script.
 ```{r MC-densities, eval=FALSE}
+
+# Calculate the mound densities
+
+library(foreach)
+library(purrrlyr)
+
+#note the exposition pipe operator $, which works as dataframe$variable
+BAmounds_densities <- BApoints %$%  
+  prom250mbuff %>%
+  density(from = 0,
+            to = 100,
+            n = 1201) %>% 
+   broom::tidy() %>%
+   tibble::as_tibble() %>%
+  dplyr::mutate(y = y * 1201) %>%
+  dplyr::rename(Prominence = x,
+                Frequency = y)
+
 ggplot() +
-  geom_line(data = yambol_regionelev_densities,
-            mapping = aes(x = Elevation,
+  geom_line(data = yambol_region_densities,
+            mapping = aes(x = Prominence,
                           y = Frequency),
             col = "lightgrey") +
   geom_ribbon(data = yambol_densities_wide,
-              mapping = aes(x = Elevation,
+              mapping = aes(x = Prominence,
                             ymin = `Lower CI`,
                             ymax = `Upper CI`),
               col = "darkgrey",
               alpha = 0.5) +
   geom_line(data = mounds_densities,
-               mapping = aes(x = Elevation,
+               mapping = aes(x = Prominence,
                              y = Frequency),
                color = "red", size = 2)+
-  theme_bw()
+  geom_line(data = BAmounds_densities,
+               mapping = aes(x = Prominence,
+                             y = Frequency),
+               color = "pink", size = 2)+
+  theme_bw()+
+  labs(x = "Topographic Prominence (%)")
 ```
 
 
