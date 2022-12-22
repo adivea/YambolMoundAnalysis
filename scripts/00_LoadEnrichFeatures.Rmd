@@ -369,8 +369,7 @@ write_rds(mnds, "../output_data/mnds_aggr.rds")
 read_rds("../output_data/mnds_aggr.rds")
 ```
 
-
-# Export rasters as a brick
+## Export rasters as a brick
 ```{r}
 Y <- brick(Y_flow, Y_rough, Y_TPI, Y_TRI)
 
@@ -382,3 +381,73 @@ rm(list = c("Y", "Y_rough", "Y_TPI","Y_TRI", "Y_flow"))
 rm(Y_aspslope)
 ```
 
+
+
+## Add data necessary for AKB NEEDS WORK
+### Distance from each mound to its "zemlishte"
+
+AKB asks for distance and azimuth to the nearest cadastral village (in "zemlishte"). The tricky part is that the cadastral villages need not be the geographically nearest places, and so we need to know which zemlishte territory is each mound in so we can calculate the distance between it and all the mounds in the village cadastre.
+
+The information about which village cadastre does a mound belong to can be derived from an intersection of the mounds and zemlishte polygons. Here we use a shortcut: spatial points output from a spatial query in ArcGIS (ElhStr_features.shp), which contains the TRAP ID of each mound and the Name and number of the zemlishte village (Name_en and EKATTE)
+We have the zemlishte village point data with Name_en and EKATTE in ElhStr_towns shapefile
+
+```{r load-zemlishe}
+# Zemlishte information sit in ElhStr_towns shapefile
+village <- read_sf("../data/ElhStr_towns.shp")
+data22 <- read_sf("../data/ElhStr_features.shp")
+```
+
+### Wrangle the features and nearest zemlishte 
+```{r wrangle-zemlishte}
+# Subset the features 2022 data to only TRAP numbers and the name of the  zemlishte-defining village
+features22 <- data22 %>%
+  dplyr::select(TRAP,EKATTE, Name_en) #EKATTE and Name_en are the number and name of the zemlishte that we are interested in
+
+# Create a simple feature of village points ordered by the TRAP numbers from the features 22 dataset,   
+villages22 <- features22 %>% 
+  st_drop_geometry() %>%  # dropping feature geometry
+  left_join(village, by = "EKATTE") %>%  #joining village geometry to TRAP numbers
+  dplyr::select(-Descr_bg, -Name_bg, -Suffix_bg, -Suffix_en)
+villages22
+```
+
+### Calculate distances
+
+Once we have the starting and ending points, the distances are trivial to calculate between mounds and zemlishte using the st_distance() function, utilizing by_element argument, because I am only interested in pairwise distances 
+```{r distance-zemlishte}
+features22$distToTown <- st_distance(features22$geometry, villages22$geometry, by_element = TRUE)
+ls('package:sf')
+```
+
+### Calculate azimuth
+
+Azimuth can be tricky as it is an angular measurement which is often produced only in geographic space and here we have geometric, planar space. I use the `nngeo` package of Michael Dorman as it calculates "planar" /geometric azimuth (https://michaeldorman.github.io/nngeo/index.html).
+sf library works in geometric /planar space and so 
+The other `geosphere::azimuth` which calculates geographic azimuth in `latlong` coordinates.(https://stackoverflow.com/questions/51030060/in-geosphere-package-in-r-why-arent-bearings-in-0-360-degrees) 
+
+
+```{r azimuth}
+install.packages("remotes")
+remotes::install_github("michaeldorman/nngeo")
+features22$azimuth <- nngeo::st_azimuth(features22$geometry, villages22$geometry)
+```
+
+### Export for Toshko
+```{r export}
+# All 479 features from the Elhovo and Straldzha municipality (2010-2022)
+write.csv(features22 %>% st_drop_geometry(), "../output_data/features22forToshko.csv")
+
+# Only 238 features collected in 2022 in the Elhovo and Straldzha municipality
+library(mapview)
+features22 %>% 
+  filter(TRAP %in%mnd22$TRAP) %>% 
+  mapview()
+
+# Only 311 features collected in 2010-2022 in the Elhovo municipality
+mun <- read_sf("../data/Yam_Municipalities.shp")
+
+library(sf)
+features22$geometry %>% 
+  sf::st_intersection(mun[4,]) %>% 
+  mapview()
+```

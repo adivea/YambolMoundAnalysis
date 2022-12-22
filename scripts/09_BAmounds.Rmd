@@ -41,6 +41,7 @@ BA$HeightMax[5] <- 3.2
 I tested this chunk with mound 6011 instead of 6010, because the image for 6011 looks excavated but its prominence was less than 6% as it sits on a flat ridge 
 
 Todor specified the coordinates and other data for the excavated mounds as:
+
 Drazhevo - Height: 2.7 m; Diameter: 37.0 m; Land: pasture on the rocky area
 Straldzha - Height: 4.0 m; Diameter: 50.0 m; Land: wines and pasture
 Popovo - Height: 6.8 m; Diameter: 48.0 m; Land: wines and pasture

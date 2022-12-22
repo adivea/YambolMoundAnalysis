@@ -26,6 +26,9 @@ Y_elev <- raster("../output_data/large/Yelev32635.tif")
 # Yambol mounds
 Yam_mnds <- readRDS("../output_data/Yam_mnds.rds")
 head(Yam_mnds)
+Yam_mnds %>% 
+  group_by(Type) %>% 
+  tally()
 ```
 # Bronze Age mounds from Toshko
 
@@ -228,18 +231,19 @@ sync(m1,m2)
 ```
 
 ## Distance to zemlishte central settlement
-AKB asks for distance and azimuth to the nearest village (in zemlishte)
+AKB asks for distance and azimuth to the nearest village (in "zemlishte")
 
 ```{r load-distance}
+# Zemlishte information sit in ElhStr_towns shapefile
 village <- read_sf("../data/ElhStr_towns.shp")
 data22 <- read_sf("../data/ElhStr_features.shp")
 ```
 
 ### Wrangle the features and nearest municipality centers (which need not be the geographically nearest places)
 ```{r}
-# Subset the features 2022 data to only TRAP numbers and the name of the belonging village
+# Subset the features 2022 data to only TRAP numbers and the name of the  zemlishte-defining village
 features22 <- data22 %>%
-  dplyr::select(TRAP,EKATTE, Name_en)
+  dplyr::select(TRAP,EKATTE, Name_en) #EKATTE and Name_en are the number and name of the zemlishte that we are interested in
 
 # Create a simple feature of village points ordered by the TRAP numbers from the features 22 dataset,   
 villages22 <- features22 %>% 
@@ -250,6 +254,8 @@ villages22
 ```
 
 ### Calculate distances
+
+between mounds and zemlishte using the st_distance() function, utilizing by_element argument, because I am only interested in pairwise distances 
 ```{r}
 features22$distToTown <- st_distance(features22$geometry, villages22$geometry, by_element = TRUE)
 ls('package:sf')

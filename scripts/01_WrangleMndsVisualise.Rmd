@@ -42,12 +42,6 @@ str(features)
 #colnames(features)
 ```
 
-## Add data necessary for AKB -- NEEDS COMPLETION
-### add vilage cadasters in the Elhovo municipality
-```{r AKB-data}
-
-```
-
 ## Validation I: Check how many of the features are actually mounds
 
 ```{r type-tally}
