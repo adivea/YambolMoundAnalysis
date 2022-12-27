@@ -29,19 +29,21 @@ First, let's filter mounds by TRAP id from the TRAP survey mound dataset and sec
 
 ```{r BA-faims}
 # Filter out the BA mounds from the FAIMS data
-bronze <- c(6009,8007,6010,8345,8346,8357, 8502, 8351, 9257) # Toshko provided these TRAP numbers
+bronze <- c(6009,8007,6003,8345,8346,8357,8502) # Toshko provided these TRAP numbers
+# He also suspects 8351, 9257, but let's run without them for now.
 BA <- Yam_mnds %>% 
   filter(TRAP %in% bronze)
 
 # Add literature dimensions to mound 8345, which was excavated before survey 
-BA$DiameterMax[5] <- 37.5
-BA$HeightMax[5] <- 3.2
+BA$DiameterMax[4] <- 37.5
+BA$HeightMax[4] <- 3.2
 
 ```
 I tested this chunk with mound 6011 instead of 6010, because the image for 6011 looks excavated but its prominence was less than 6% as it sits on a flat ridge 
 
 Todor specified the coordinates and other data for the excavated mounds as:
 
+Lozyanska - UTM 35 T 468101 4679119 - is 6003
 Drazhevo - Height: 2.7 m; Diameter: 37.0 m; Land: pasture on the rocky area
 Straldzha - Height: 4.0 m; Diameter: 50.0 m; Land: wines and pasture
 Popovo - Height: 6.8 m; Diameter: 48.0 m; Land: wines and pasture
@@ -83,7 +85,7 @@ mapview(Yam_mnds, cex = 2) + mapview(BApoints) #using just the coordinates
 
 ```{r}
 plot(Y_region$geometry, main = "Excavated Bronze Age mounds (red circles) \n and other mound locations in Yambol")
-plot(Yam_mnds$geometry, add = T);
+plot(Yam_mnds$geometry, add = T, col = "lightgrey");
 plot(BApoints$geometry, pch = 16, col = "red", add =T)
 
 ```
@@ -140,22 +142,32 @@ sync(pr, tri)
 ```
 ## Tabulate and summarize the Bronze Age mound attributes
 Let us now look at some attributes of interest such as morphology, elevation, slope, etc.
-```{r table-BA}
+
+```{r table-BA-prom}
 library(formattable)
+
+highlight <- color_tile("yellow","yellow")
+
 formattable(BApoints %>% 
   st_drop_geometry() %>% 
-  dplyr::select(TRAP, HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff, LU_Around, LU_Top))
-
+  dplyr::select(TRAP, HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff, LU_Around, LU_Top), list(
+  area(col = 6, row = 3 ) ~ highlight,
+  area(col = 6, row = 6 ) ~ highlight,
+  area(col = 1, row = 3 ) ~ highlight,
+  area(col = 1, row = 6 ) ~ highlight,
+  area(col = 6, row = 9 ) ~ highlight,
+  area(col = 1, row = 9) ~ highlight
+  ))
 ```
 We might as well summarize these values to get an idea of the range present in BA mounds
-```{r}
+```{r summaries}
 summary(BApoints[,c(6:7,12:18)])
 ```
 
-An average Bronze Age mound has the height of 3m, diameter around 30 m, the prominence mean of 66% and prominence median of 71%. TRI is around 1.35 and roughness at 4.  We may be able to extend these findings to the other Yambol mounds.
+An average Bronze Age mound has the height of 3.5 m, diameter around 35 m, the prominence mean of 70%, TRI is around 1.6 and roughness at 5.  We may be able to extend these findings to the other Yambol mounds.
 
-Most mounds are located in pastures(5) or rock outcrops with sparse grass cover, some scrub(2) and occasionally vineyards(2) and agricultural fields(2).
-```{r}
+Most mounds are located in pastures(5) or rock outcrops with sparse grass cover, some scrub(2) and occasionally vineyards(2) .
+```{r landuse}
 BApoints %>% 
   st_drop_geometry() %>% 
   group_by(LU_Around) %>% 
@@ -169,25 +181,8 @@ BApoints %>%
   arrange(desc(n))
 
 ```
-As for the previous summary of attributes, the means are always deceptive, and small errors might cause big deviations (I think 6010 might be confused with 6011). The prominence mean, for example, might be higher if the two low-prominence mounds were not included (6010 and 8351)
+As for the previous summary of attributes, the means are always deceptive, and small errors might cause big deviations (earlier 6010 was conflated with 6003). The prominence mean, for example, might be higher if the two low-prominence mounds were not included (6010 and 8351)
 
-```{r table-prom}
-library(formattable)
-
-highlight <- color_tile("yellow","yellow")
-
-formattable(BApoints %>% 
-  st_drop_geometry() %>% 
-  dplyr::select(TRAP, HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff, LU_Around, LU_Top), list(
-  area(col = 6, row = 2 ) ~ highlight,
-  area(col = 6, row = 7 ) ~ highlight,
-  area(col = 1, row = 2 ) ~ highlight,
-  area(col = 1, row = 7 ) ~ highlight,
-  area(col = 6, row = 11 ) ~ highlight,
-  area(col = 1, row = 11) ~ highlight
-  ))
-
-```
 
 ```{r}
 plot(BApoints %>%
@@ -201,34 +196,34 @@ plot(Yam_mnds %>%
 ```
 
 
-While most mounds are in areas of high natural prominence, two exceptions confirm the rule: 6010 and 8351 are in non-prominent areas. The low (~30%) scores may be caused by the coarse resolution of the 30m ASTER image which smooths over small-scale outcrops. In case of [6010](https://drive.google.com/file/d/1FA0u-wfDa833nJ3AJsMz-YrGdUVZaKj9/view?usp=sharing) /[6011](https://drive.google.com/file/d/0B-3SQVhaYJT8akZxX2s2aDNVMTQ/view?usp=sharing&resourcekey=0--m1nV2vPcDUaUMz9_-NCnw) and [8351](https://drive.google.com/file/d/1z89LtciUJxqdxofzierwLEaiQLlb7tHL/view?usp=sharing), the 250m radius disadvantages mounds located on elevated platforms. These may have reasonable visibility of the surrounding landscape but are either on a lower upslope or flat ridge (6011) which lowers the results within the 250m radius. The other option is that the mound-builders cared less about high location, sought dissociation from mounds on outcrops (already standing), or hoped to imbue the mound with prominence by raising its height.
+Most of the mounds are in areas of high natural prominence, one exception confirms the rule: Straldzha mound is in a non-prominent area with prominence below 50%. The low score may be caused by the coarse resolution of the 30m ASTER image, the 250m radius (disadvantages mounds located on elevated platforms). The other option is that the mound-builders cared less about elevated location, and sought dissociation from mounds on outcrops (already standing), or hoped to imbue the mound with prominence by raising its height.
 
 ## Predict mounds on the basis of prominence and TRI
 The mean and median prominence values for BA mounds can provide a guide for other potentially Bronze Age mounds (if we choose a single factor)
-The following map will show the mounds within the Yambol dataset that have prominence higher than the mean of 66% (303 features) and whose topographic ruggedness is over the mean of 1.35 (72). The lighter the point color the higher their prominence and the more probable their Bronze Age origin 
+The following map will show the mounds within the Yambol dataset that have prominence higher than the mean of 70% (258 features) and whose topographic ruggedness is over the mean of 1.6 (52). The lighter the point color the higher their prominence and the more probable their Bronze Age origin 
 ```{r}
 library(mapview)
 library(leafsync)
-m71 <- Yam_mnds %>% 
-  filter( prom250mbuff > 71 & Type == "Burial Mound" & TRI >1.35) %>% 
+tri <- Yam_mnds %>% 
+  filter( prom250mbuff > 70 & Type == "Burial Mound" & TRI >1.6) %>% 
   mapview(zcol = "prom250mbuff")
-m66 <- Yam_mnds %>% 
-  filter(prom250mbuff > 66 & Type == "Burial Mound") %>% 
+notri <- Yam_mnds %>% 
+  filter(prom250mbuff > 70 & Type == "Burial Mound") %>% 
   mapview(zcol = "prom250mbuff")
 BA <- mapview(BApoints)
-sync(m66,m71, BA, ncol=3)
+sync(tri,notri, BA, ncol=3)
 ```
 ## Predict BA mounds on basis of Landuse and size
-Over 3 m high and over 150masl, over 66% and 1.35 TRI
+Over 3 m high and over 70% and 1.6 TRI results in 6 features total
 ```{r}
 withTRI <- Yam_mnds %>% 
   filter(HeightMax > 3 & 
-           elevAster > 150 &
+        #   elevAster > 150 &
         # DiameterMax > 30 &&
         # LU_Around == "Scrub" | LU_Around == "Pasture" &&
         #   LU_Top == "Pasture" | LU_Top == "Scrub" &&
-         prom250mbuff > 66 &
-         TRI > 1.35 &
+         prom250mbuff > 70 &
+         TRI > 1.6 &
          Type == "Burial Mound" ) %>% 
   mapview()
 withTRI
@@ -236,17 +231,17 @@ withTRI
 
 ```
 
-Over 3 m high and over 170masl and 71% prominence.
+Over 3 m high and 70%+ prominence results in 51 features.
 ```{r}
 library(mapview)
 library(leafsync)
 noTRI <- Yam_mnds %>% 
   filter(HeightMax > 3 & 
-           elevAster > 170 &
+          # elevAster > 170 &
         # DiameterMax > 30 &&
         # LU_Around == "Scrub" | LU_Around == "Pasture" &&
         #   LU_Top == "Pasture" | LU_Top == "Scrub" &&
-         prom250mbuff > 66 &
+         prom250mbuff > 70 &
         # TRI > 1.35 &&
          Type == "Burial Mound" ) %>% 
           mapview()
@@ -262,8 +257,7 @@ sync(BA,withTRI,noTRI, ncol=3)
 potentialBA <- Yam_mnds %>% 
               st_drop_geometry() %>% 
   filter(HeightMax > 3 & 
-           elevAster > 170 &
-         prom250mbuff > 66 &
+           prom250mbuff > 70 &
          Type == "Burial Mound" )
 #write.csv(potentialBA, "../output_data/potentialBA.csv")
 

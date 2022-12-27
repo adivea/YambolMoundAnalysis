@@ -47,7 +47,7 @@ library(raster)
 ```
 
 ## Load 2009-2018 data
-This data is a bit special as it was processed in 2020 (see MoundMerging2020 repo in Github)
+This data is a bit special as it was processed in 2020 and contains all map mounds as well as all survey features detected en route, and so not only extant [829] and extinct [155] mounds (see MoundMerging2020 repo in Github)
 ```{r mounds18}
 # Environmental-extraction-enriched output from 2020 Mound Merging repo > 07_EnrichSpatial.R
 mn09_18 <- read_csv2("../data/enriched_all.csv")
@@ -73,17 +73,21 @@ I used 2022_Elhovo_ORcleaningscript to clean up data from the Elhovo 2022 Burial
 ```{r load-mnd22-data}
 # Load data
 mounds22_1 <- read_csv("../data/20220921BurialMoundOne-csv.csv")
-mounds22_2 <- read_csv("../data/20220927BurialMoundTwo-csv.csv")
+mounds22_2 <- read_csv("../data/20220930BurialMoundTwo-csv.csv")
 
 mounds22 <- rbind(mounds22_1,mounds22_2)
 table(mounds22$TypeClean)
 names(mounds22)
+write.csv(mounds22, "../data/2022Elhovo.csv")
 
 # wrangle to 20 columns
 mnd22 <- mounds22 %>%
-  rename(TRAP=MoundID, Type=TypeClean, LU_Around = LanduseAroundMound, LU_Top = LanduseOnTopOfMound) %>% 
+  dplyr::rename(TRAP=MoundID, Type=TypeClean, LU_Around = LanduseAroundMound, LU_Top = LanduseOnTopOfMound) %>% 
   dplyr::select(TRAP, Source, Type, LU_Around, LU_Top, DiameterMax, HeightMax, Condition, PrincipalSourceOfImpact, Date, Northing, Easting, geospatialcolumn)
+rm(mounds22_1,mounds22_2,mounds22)
 ```
+
+We should have 310 features from the 2022 season
 
 ## Spatialize
 
@@ -110,7 +114,7 @@ mn22 <- st_as_sf(mnd22, coords = c("Easting", "Northing"), crs = 32635)
 # sanity check
 plot(mn18$geometry, col = 'darkred');plot(mn22$geometry, col = 'red', add =T)
 
-rm(list = c("mounds22_1","mounds22_2", "mounds22", "mnd"))
+rm(list = c("mounds22_1","mounds22_2", "mounds22", "mnd22"))
 
 ```
 
@@ -172,13 +176,13 @@ library(raster)
 
 # Load projected raster cropped to Yambol region boundary 
 
-Y_elev32635 <- raster("../output_data/Yelev32635.tif")
+Y_elev32635 <- raster("../output_data/large/Yelev32635.tif")
 plot(Y_elev32635)
 
 
 # Load large mosaiced raster ( "../output_data/YT_elev32635.tif" for both Turkey & SE Bulgaria) because you have mounds outside Yambol region, rename and crop it to a buffer around Yambol 
 
-elev <- raster("../output_data/YT_elev32635.tif")
+elev <- raster("../output_data/large/YT_elev32635.tif")
 plot(elev)
 # elev <- crop(Y_Lelev32635, st_buffer(Y_region, 5000))
 # elev <- mask(elev, st_buffer(Y_region, 5000))
@@ -228,9 +232,9 @@ This is a two-step process:
  
 ```{r distance}
 # Distance to nearest (as the crow flies) village
-mn22$distTown <- st_distance(mn22, towns[st_nearest_feature(mn22, towns),], by_element = TRUE)
+mn22$distTown <- st_distance(mn22, Y_towns[st_nearest_feature(mn22, Y_towns),], by_element = TRUE)
 head(mn22,3)
-mn18$distTown <- st_distance(mn18, towns[st_nearest_feature(mn18, towns),], by_element = TRUE)
+mn18$distTown <- st_distance(mn18, Y_towns[st_nearest_feature(mn18, Y_towns),], by_element = TRUE)
 head(mn18,3)
 ```
 
@@ -350,7 +354,7 @@ summary(mnds[,11:19])
 # Distance from points to BG boundary
 mnds$distBG <-  st_distance(mnds,bg_border)
 # Distance from mound points to nearest settlement
-mnds$distTown <- st_distance(mnds, towns[st_nearest_feature(mnds, towns),], by_element = TRUE)
+mnds$distTown <- st_distance(mnds, Y_towns[st_nearest_feature(mnds, Y_towns),], by_element = TRUE)
 summary(mnds[,11:19])
 ```
 
@@ -365,89 +369,20 @@ mapview(mnds %>% filter(Type == "Burial Mound"), zcol = "distBG")
 
 Export the interim enriched set of all features (inside and outside of Yambol) collected during 2009-2022 seasons in the Yambol region. These will need to be filtered for actual mounds as there are settlement mounds, bunkers and lots of other stuff in there. They also need streamlining in terms of Condition, Height, etc. 
 ```{r interim-export, eval = FALSE}
-write_rds(mnds, "../output_data/mnds_aggr.rds")
-read_rds("../output_data/mnds_aggr.rds")
+write_rds(mnds, "../output_data/mnds_aggr_27Dec.rds")
+#read_rds("../output_data/mnds_aggr.rds")
 ```
 
 ## Export rasters as a brick
-```{r}
+```{r export-flow,eval=FALSE}
 Y <- brick(Y_flow, Y_rough, Y_TPI, Y_TRI)
 
 # Write to file
 
-writeRaster(Y, filename = "../output_data/YflowroughTRI.tif", format="GTiff", overwrite = TRUE)
-writeRaster(Y_aspslope, filename = "../output_data/Yaspslope.tif", format="GTiff", overwrite = TRUE)
+writeRaster(Y, filename = "../output_data/large/YflowroughTRI.tif", format="GTiff", overwrite = TRUE)
+writeRaster(Y_aspslope, filename = "../output_data/large/Yaspslope.tif", format="GTiff", overwrite = TRUE)
 rm(list = c("Y", "Y_rough", "Y_TPI","Y_TRI", "Y_flow"))
 rm(Y_aspslope)
 ```
 
 
-
-## Add data necessary for AKB NEEDS WORK
-### Distance from each mound to its "zemlishte"
-
-AKB asks for distance and azimuth to the nearest cadastral village (in "zemlishte"). The tricky part is that the cadastral villages need not be the geographically nearest places, and so we need to know which zemlishte territory is each mound in so we can calculate the distance between it and all the mounds in the village cadastre.
-
-The information about which village cadastre does a mound belong to can be derived from an intersection of the mounds and zemlishte polygons. Here we use a shortcut: spatial points output from a spatial query in ArcGIS (ElhStr_features.shp), which contains the TRAP ID of each mound and the Name and number of the zemlishte village (Name_en and EKATTE)
-We have the zemlishte village point data with Name_en and EKATTE in ElhStr_towns shapefile
-
-```{r load-zemlishe}
-# Zemlishte information sit in ElhStr_towns shapefile
-village <- read_sf("../data/ElhStr_towns.shp")
-data22 <- read_sf("../data/ElhStr_features.shp")
-```
-
-### Wrangle the features and nearest zemlishte 
-```{r wrangle-zemlishte}
-# Subset the features 2022 data to only TRAP numbers and the name of the  zemlishte-defining village
-features22 <- data22 %>%
-  dplyr::select(TRAP,EKATTE, Name_en) #EKATTE and Name_en are the number and name of the zemlishte that we are interested in
-
-# Create a simple feature of village points ordered by the TRAP numbers from the features 22 dataset,   
-villages22 <- features22 %>% 
-  st_drop_geometry() %>%  # dropping feature geometry
-  left_join(village, by = "EKATTE") %>%  #joining village geometry to TRAP numbers
-  dplyr::select(-Descr_bg, -Name_bg, -Suffix_bg, -Suffix_en)
-villages22
-```
-
-### Calculate distances
-
-Once we have the starting and ending points, the distances are trivial to calculate between mounds and zemlishte using the st_distance() function, utilizing by_element argument, because I am only interested in pairwise distances 
-```{r distance-zemlishte}
-features22$distToTown <- st_distance(features22$geometry, villages22$geometry, by_element = TRUE)
-ls('package:sf')
-```
-
-### Calculate azimuth
-
-Azimuth can be tricky as it is an angular measurement which is often produced only in geographic space and here we have geometric, planar space. I use the `nngeo` package of Michael Dorman as it calculates "planar" /geometric azimuth (https://michaeldorman.github.io/nngeo/index.html).
-sf library works in geometric /planar space and so 
-The other `geosphere::azimuth` which calculates geographic azimuth in `latlong` coordinates.(https://stackoverflow.com/questions/51030060/in-geosphere-package-in-r-why-arent-bearings-in-0-360-degrees) 
-
-
-```{r azimuth}
-install.packages("remotes")
-remotes::install_github("michaeldorman/nngeo")
-features22$azimuth <- nngeo::st_azimuth(features22$geometry, villages22$geometry)
-```
-
-### Export for Toshko
-```{r export}
-# All 479 features from the Elhovo and Straldzha municipality (2010-2022)
-write.csv(features22 %>% st_drop_geometry(), "../output_data/features22forToshko.csv")
-
-# Only 238 features collected in 2022 in the Elhovo and Straldzha municipality
-library(mapview)
-features22 %>% 
-  filter(TRAP %in%mnd22$TRAP) %>% 
-  mapview()
-
-# Only 311 features collected in 2010-2022 in the Elhovo municipality
-mun <- read_sf("../data/Yam_Municipalities.shp")
-
-library(sf)
-features22$geometry %>% 
-  sf::st_intersection(mun[4,]) %>% 
-  mapview()
-```

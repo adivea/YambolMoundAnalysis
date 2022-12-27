@@ -37,7 +37,7 @@ library(sf)
 
 ## Load data
 ```{r -load-aggr-data}
-features <- read_rds("../output_data/mnds_aggr.rds")
+features <- read_rds("../output_data/mnds_aggr_27Dec.rds")
 str(features)
 #colnames(features)
 ```
@@ -50,6 +50,16 @@ features %>%
   group_by(Type) %>% 
   tally()
 ```
+```{r type-check}
+# Verify that "Other" category is not legacy-data verificaiton, because those should be mounds/extinct mounds if the symbol was a brown sunburst
+
+features %>% 
+  filter(Type == "Other") %>% 
+  group_by(Source) %>% 
+  tally()
+
+```
+In the tally of "Other" types, there are 34 Legacy verification features and 41 Survey features. While the latter are expected, the 34 LV features require follow up. TO BE DONE!! 
 
 ## Validation II: Check for duplicates
 ```{r duplicate-check}
@@ -77,8 +87,17 @@ features <- features %>%
 # features %>%  # if the answer is yes, you can filter them out.
 #   mutate(HeightMax = gsub("\\?", "",HeightMax)) %>%
 #   mutate(HeightMax = as.numeric(HeightMax))
-
+features %>% 
+  group_by(Type) %>% 
+  tally()
 ```
+### Quick visual
+
+```{r}
+library(mapview)
+mapview(features, zcol = "Type")
+```
+
 ### Subset to mounds only
 
 ```{r filter-mounds}
@@ -181,18 +200,11 @@ plot(Yam_mnds["elevAster"])
 library(raster)
 library(sf)
 
-Y_elev <- raster("../output_data/Yelev32635.tif")
-plot(Y_elev)
+Y_elev <- raster("../output_data/large/Yelev32635.tif")
 st_crs(Y_elev)==st_crs(Yam_mnds)
-plot(Yam_mnds,cex = sqrt(Yam_mnds$HeightMax))
-```
 
-```{r plot-mnds-in-Y, eval = FALSE}
-#par(mfrow=c(1,2))
-raster::plot(Y_elev, xlim = c(420000,520000), ylim=c(4600000, 4800000));
-raster::plot(Yam_mnds$geometry, add = T)
-raster::plot(Y_elev, xlim = c(420000,520000), ylim=c(4600000, 4800000));
-raster::plot(Yam_mnds$geometry, cex = sqrt(Yam_mnds$HeightMax), add =T)
+plot(Y_elev)
+plot(Yam_mnds$geometry,cex = sqrt(Yam_mnds$HeightMax), add =T)
 ```
 
 ## Interactive maps
@@ -202,7 +214,7 @@ raster::plot(Yam_mnds$geometry, cex = sqrt(Yam_mnds$HeightMax), add =T)
 ```{r mapview-height}
 library(mapview)
 class(Yam_mnds)
-
+mapview(Yam_mnds, zcol="HeightMax")
 ```
 
 ### Mounds and their condition
