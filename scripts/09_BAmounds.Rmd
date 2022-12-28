@@ -85,6 +85,7 @@ mapview(BApoints) + mapview(Yam_mnds, cex = 2, zcol = "Type")
 ```
 
 ```{r eval=FALSE}
+
 #tiff("../figures/Figure01.tiff", height = 1600, width = 1000)
 plot(Y_region$geometry) 
      #main = "Excavated Bronze Age mounds (red circles) \n and other mound locations in Yambol")
