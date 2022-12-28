@@ -374,11 +374,12 @@ write_rds(mnds, "../output_data/mnds_aggr_27Dec.rds")
 ```
 
 ## Export rasters as a brick
+
 ```{r export-flow,eval=FALSE}
+# Define YflowroughTRI
 Y <- brick(Y_flow, Y_rough, Y_TPI, Y_TRI)
 
 # Write to file
-
 writeRaster(Y, filename = "../output_data/large/YflowroughTRI.tif", format="GTiff", overwrite = TRUE)
 writeRaster(Y_aspslope, filename = "../output_data/large/Yaspslope.tif", format="GTiff", overwrite = TRUE)
 rm(list = c("Y", "Y_rough", "Y_TPI","Y_TRI", "Y_flow"))

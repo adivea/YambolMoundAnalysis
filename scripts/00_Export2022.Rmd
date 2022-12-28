@@ -21,9 +21,9 @@ opts_chunk$set(echo=TRUE,
 opts_knit$set(width=75)
 ```
 
-## Wrangling Mound data out of FAIMS data
+## Preparing data for AKB for 2022
 
-The purpose of this script is to clean up and filter the total aggregate of FAIMS data originating from the Yambol region to mostly-mound points from within the regional boundary, whose attributes are analysis-ready.
+The purpose of this script is to take all data collected during Elhovo 2022 campaign (ELhovo and Straldzha), enrich them with distance and azimuth to the nearest governing village (zemlishte) so that Todor can submit them to AKB
 
 ## Setup
 ```{r libraries}

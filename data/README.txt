@@ -1,3 +1,3 @@
-all 2022 datasets are exports from the Burial-2022 module, streamlined with a script in OR
+all 2022 datasets are exports from the Burial-2022 module, streamlined with a script in OR first in Sep 2022 and then again in Dec 2022, once inconsistencies surrounding categories of Other and Uncertain Feature when in association with Legacy Data Verification as a source. I reviewed it in OR in Dell-Inspiron W10, and exported csvs that are now in the data/ folder.
 previous datasets in raw/ folder are copied from the MoundMerging2020 repository
 enriched_all.csv is the output data from extracting values at the Verified points from Yambol raster

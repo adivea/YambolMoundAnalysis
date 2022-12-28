@@ -85,7 +85,7 @@ Histograms are great for value distributions, so let's see where the mounds and 
 ```{r plot-histograms}
 ggplot(data = Yam_mnds) +
   geom_histogram(aes(prom250mbuff), bins = 50, fill = "darkgreen", alpha = 0.6)+
-  geom_histogram(aes(randompoints$prom %>% sample(1050, replace = FALSE)), bins = 50, alpha = 0.5, fill = "hotpink", colour = "pink")+
+  geom_histogram(aes(randompoints$prom %>% sample(1090, replace = FALSE)), bins = 50, alpha = 0.5, fill = "hotpink", colour = "pink")+
   labs(x = "Prominence",
           y = "Frequency")+
   theme_bw()

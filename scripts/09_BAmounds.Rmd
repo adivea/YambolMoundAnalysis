@@ -5,7 +5,7 @@ date: "2022-11-17"
 output: html_document
 ---
 
-This script summarizes environmental information on the Bronze Age burial mounds in the Yambol Province, and plots 
+This script summarizes environmental information on the Bronze Age burial mounds in the Yambol Province, and plots their location and pinpoints other mounds within Yambol that share similar environmental properties.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -16,16 +16,18 @@ library(tidyverse)
 ```
 
 ## Load 2009-2022 mound data
+We have a total of 1090 mounds, extinct and uncertain mound features in Yambol.
 ```{r load-mounds}
 # Yambol mounds
-Yam_mnds <- readRDS("../output_data/Yam_mnds.rds")
+Yam_mnds <- readRDS("../output_data/Yam_mnds.rds") # dataset is most recent from 27/12/2022
 Y_region <- st_read("../data/YamRegion.shp")
 head(Yam_mnds)
+Yam_mnds %>% group_by(Type) %>% tally()
 ```
 ## Extract excavated Bronze Age mounds
 
-We now need to separate out the mounds originating from the Bronze Age as confirmed by excavation. 
-First, let's filter mounds by TRAP id from the TRAP survey mound dataset and second, we will create spatial data for the excavated mounds.
+We separate out the excavated mounds with Bronze Age (BA) cultural material. 
+First, we filter mounds on the basis of TRAP ID list supplied by Todor and second, we create spatial data for mounds excavated before TRAP survey.
 
 ```{r BA-faims}
 # Filter out the BA mounds from the FAIMS data
@@ -39,13 +41,12 @@ BA$DiameterMax[4] <- 37.5
 BA$HeightMax[4] <- 3.2
 
 ```
-I tested this chunk with mound 6011 instead of 6010, because the image for 6011 looks excavated but its prominence was less than 6% as it sits on a flat ridge 
+Originally we had 6010 among the BA mound IDs, but visual inspection of pictures did not indicate an excavated. I tested mound 6011 instead of 6010, because the image for 6011 shows an excavated mound and I thought maybe an error happened, but its prominence was less than 6% as it sits on a flat ridge and Todor explained that the mound was half-excavated after survey (2012), for which there is a clear candidate in 6003 (Lozyanska - UTM 35 T 468101 4679119)
 
-Todor specified the coordinates and other data for the excavated mounds as:
+The mounds excavated mounds before survey were specified in the AKB and their data and coordinates follow below:
 
-Lozyanska - UTM 35 T 468101 4679119 - is 6003
 Drazhevo - Height: 2.7 m; Diameter: 37.0 m; Land: pasture on the rocky area
-Straldzha - Height: 4.0 m; Diameter: 50.0 m; Land: wines and pasture
+Straldzha - Height: 4.0 m; Diameter: 50.0 m; Land: wines and pasture; this corresponds to 9969 
 Popovo - Height: 6.8 m; Diameter: 48.0 m; Land: wines and pasture
 8345 Mogila village - Height: 3.2 m; Diameter: 37.6 m; Land: pasture on the rocky area 
 
@@ -72,21 +73,24 @@ BApoints <- rbind.fill(BA, extrasf) # combine the attributes by row
 BAcoords <- rbind(st_coordinates(BA) ,st_coordinates(extrasf)) # combine coordinates
 BApoints <- cbind(BApoints, BAcoords) # add coordinate column to the attributes
 BApoints <- st_as_sf(BApoints, coords = c("X", "Y"), crs = 32635) # convert to a simple feature
-tail(BApoints)
 ```
 
 ## Map the mounds
 
-Compare the excavated Bronze Age mound location with the other Yambol mounds
+Compare the excavated Bronze Age mound locations with the other Yambol mounds
 ```{r}
 library(mapview)
-mapview(Yam_mnds, cex = 2) + mapview(BApoints) #using just the coordinates
+mapview(BApoints) + mapview(Yam_mnds, cex = 2, zcol = "Type") 
+#mapview(extrasf) + mapview(Yam_mnds, cex = 2, zcol = "Type")
 ```
 
-```{r}
-plot(Y_region$geometry, main = "Excavated Bronze Age mounds (red circles) \n and other mound locations in Yambol")
+```{r eval=FALSE}
+#tiff("../figures/Figure01.tiff", height = 1600, width = 1000)
+plot(Y_region$geometry) 
+     #main = "Excavated Bronze Age mounds (red circles) \n and other mound locations in Yambol")
 plot(Yam_mnds$geometry, add = T, col = "lightgrey");
 plot(BApoints$geometry, pch = 16, col = "red", add =T)
+#dev.off()
 
 ```
 
@@ -97,19 +101,13 @@ We first load the ASTER layer and a derived slope and aspect raster.
 ```{r raster-load}
 Y_elev <- raster("../output_data/large/Yelev32635.tif")
 Y_aspslope <- brick("../output_data/large/Yaspslope.tif")
+Y_tri <- brick("../output_data/large/YflowroughTRI.tif") # see script 00 line 380, TRI is the layer no.4 in the sequence of brick(Y_flow, Y_rough, Y_TPI, Y_TRI)
 ```
 
 Next, we extract values from raster at mound locations. 
 
 An  alternative to extraction is to, when grabbing the excavated mounds, get the information from the AOR reports, so as to have as complete a record of the morphology as possible. Here I enrich the BA mound data with environmental information extracted from ASTER raster. I simply overwrite the data where it exists so as to be consistent
 ```{r sample-elev-aspect-slope-22}
-# Streamline mound data by killing and regenerating some columns. Commented out, as I overwrite them 
-# BApoints <- BApoints %>% 
-#   dplyr::select(-elevAster) %>% 
-#   dplyr::select(-aspectAster) %>% 
-#   dplyr::select(-prom250mbuff) %>% 
-#   dplyr::select(-slopeAster)
-
 # Sample elevations at mound locations
 BApoints$elevAster <- raster::extract(Y_elev, st_coordinates(BApoints))
 
@@ -118,7 +116,11 @@ BApoints$slopeAster <-  raster::extract(Y_aspslope$Yaspslope.1, st_coordinates(B
 
 BApoints$aspectAster <-  raster::extract(Y_aspslope$Yaspslope.2, st_coordinates(BApoints))
 
+BApoints$TRI <- raster::extract(Y_tri$YflowroughTRI.4, st_coordinates(BApoints))
 
+BApoints$TPI <- raster::extract(Y_tri$YflowroughTRI.3, st_coordinates(BApoints))
+
+BApoints$rough <- raster::extract(Y_tri$YflowroughTRI.2, st_coordinates(BApoints))
 
 # Calculate prominence 
 
@@ -132,7 +134,7 @@ BApoints$prom250mbuff <- raster::extract(Y_elev,# raster containing elevation da
 ```
 
 ## Plot BA mounds with the prominence
-In the next chunk we view the relative visual control of the surrounding terrain (prominence measures the percentage of area visible from mound within 360 degrees and 250m radius around the mound), and the accessibility. TRI is topographic ruggedness representing another measure of relative elevation above the terrain (it is only present in survey mounds ad needs to be calculated for all excav.mounds)
+In the next chunk we view the relative visual control of the surrounding terrain (prominence measures the percentage of area visible from mound within 360 degrees and 250m radius around the mound), and the accessibility. TRI is topographic ruggedness representing another measure of relative elevation above the terrain (it is only present in survey mounds and needs to be calculated for all excavated mounds)
 ```{r mapview-prom-BA}
 library(leafsync)
 
@@ -150,7 +152,7 @@ highlight <- color_tile("yellow","yellow")
 
 formattable(BApoints %>% 
   st_drop_geometry() %>% 
-  dplyr::select(TRAP, HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff, LU_Around, LU_Top), list(
+  dplyr::select(TRAP, HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff, LU_Around, LU_Top, TPI, rough), list(
   area(col = 6, row = 3 ) ~ highlight,
   area(col = 6, row = 6 ) ~ highlight,
   area(col = 1, row = 3 ) ~ highlight,
@@ -184,7 +186,7 @@ BApoints %>%
 As for the previous summary of attributes, the means are always deceptive, and small errors might cause big deviations (earlier 6010 was conflated with 6003). The prominence mean, for example, might be higher if the two low-prominence mounds were not included (6010 and 8351)
 
 
-```{r}
+```{r scatterplot}
 plot(BApoints %>%
        st_drop_geometry() %>% 
        dplyr::select(HeightMax, DiameterMax, elevAster, slopeAster, prom250mbuff))
@@ -196,73 +198,171 @@ plot(Yam_mnds %>%
 ```
 
 
-Most of the mounds are in areas of high natural prominence, one exception confirms the rule: Straldzha mound is in a non-prominent area with prominence below 50%. The low score may be caused by the coarse resolution of the 30m ASTER image, the 250m radius (disadvantages mounds located on elevated platforms). The other option is that the mound-builders cared less about elevated location, and sought dissociation from mounds on outcrops (already standing), or hoped to imbue the mound with prominence by raising its height.
+Most of the mounds are in areas of high natural prominence, one exception confirms the rule: Straldzha mound is in a largely flat area of a Pleistocene lake with prominence below 50%. The low score may be caused by the coarse resolution of the 30m ASTER image, the 250m radius (disadvantages mounds located on elevated platforms). The other option is that the mound-builders cared less about elevated location, and sought dissociation from mounds on outcrops (already standing), or hoped to imbue the mound with prominence by raising its height.
 
 ## Predict mounds on the basis of prominence and TRI
 The mean and median prominence values for BA mounds can provide a guide for other potentially Bronze Age mounds (if we choose a single factor)
-The following map will show the mounds within the Yambol dataset that have prominence higher than the mean of 70% (258 features) and whose topographic ruggedness is over the mean of 1.6 (52). The lighter the point color the higher their prominence and the more probable their Bronze Age origin 
-```{r}
+The following map will show the mounds within the Yambol dataset that have prominence higher than the mean of 70% (265 features) and whose topographic ruggedness is over the mean of 1.6 (52). The lighter the point color the higher their prominence and the more probable their Bronze Age origin 
+```{r mapview-comp-I}
 library(mapview)
 library(leafsync)
-tri <- Yam_mnds %>% 
-  filter( prom250mbuff > 70 & Type == "Burial Mound" & TRI >1.6) %>% 
+
+potentialBA <- Yam_mnds %>% 
+  dplyr::filter(prom250mbuff > 70 & Type == "Burial Mound" & TRI >1.6) %>% 
   mapview(zcol = "prom250mbuff")
-notri <- Yam_mnds %>% 
+
+prom70 <- Yam_mnds %>% 
   filter(prom250mbuff > 70 & Type == "Burial Mound") %>% 
   mapview(zcol = "prom250mbuff")
+
 BA <- mapview(BApoints)
-sync(tri,notri, BA, ncol=3)
-```
-## Predict BA mounds on basis of Landuse and size
-Over 3 m high and over 70% and 1.6 TRI results in 6 features total
-```{r}
-withTRI <- Yam_mnds %>% 
-  filter(HeightMax > 3 & 
-        #   elevAster > 150 &
-        # DiameterMax > 30 &&
-        # LU_Around == "Scrub" | LU_Around == "Pasture" &&
-        #   LU_Top == "Pasture" | LU_Top == "Scrub" &&
-         prom250mbuff > 70 &
-         TRI > 1.6 &
-         Type == "Burial Mound" ) %>% 
-  mapview()
-withTRI
 
-
+sync( BA, potentialBA,prom70,ncol=3)
 ```
 
-Over 3 m high and 70%+ prominence results in 51 features.
-```{r}
+## With height
+Setting the height to 3+ m produces an interesting result.  Over 3 m high and 70%+ prominence results in 52 features, same as without the height constraint, but they are in different locations from the 52 features selected on the basis of prominence and TRI. Compare the former (tri-based) features with height-based ones in pane 2 and 3.
+```{r mapview-comparison-II}
 library(mapview)
 library(leafsync)
-noTRI <- Yam_mnds %>% 
+
+potentialBA3m <- Yam_mnds %>% 
   filter(HeightMax > 3 & 
-          # elevAster > 170 &
+        # elevAster > 170 &
         # DiameterMax > 30 &&
         # LU_Around == "Scrub" | LU_Around == "Pasture" &&
         #   LU_Top == "Pasture" | LU_Top == "Scrub" &&
          prom250mbuff > 70 &
-        # TRI > 1.35 &&
+        # TRI > 1.6 &&
          Type == "Burial Mound" ) %>% 
           mapview()
            
 BA <- mapview(BApoints)
-sync(BA,withTRI,noTRI, ncol=3)
+sync(BA,potentialBA,potentialBA3m, ncol=3)
 
 ```
+### Tmap Merged Potential BA mounds (3m and TRI >1.6)
+```{r}
+library(tmap)
+
+potentialBA <- Yam_mnds %>% 
+  filter(TRI > 1.6 & 
+         prom250mbuff > 70 &
+         Type == "Burial Mound" )
+
+potentialBA3m <- Yam_mnds %>% 
+  filter(HeightMax > 3 & 
+         prom250mbuff > 70 &
+         Type == "Burial Mound" )
+
+tm_shape(Yam_mnds, bbox = st_bbox(Y_region))+
+  tm_symbols(shape = 2, col="#666666", size = 0.02) +
+tm_shape(Y_region) +
+ tm_borders(col = "grey", 
+              lwd = 2)+
+tm_shape(potentialBA, bbox = st_bbox(Y_region)) + 
+  # tm_polygons(col="cornsilk2", border.alpha = 0)+
+  # tm_shape(features) + 
+  tm_symbols(shape = 21, col="red", 
+            # size = 0.1,
+             alpha = 0.5) +  #6 and 26 are downward triangles
+tm_shape(potentialBA3m, bbox = st_bbox(Y_region)) + 
+  # tm_polygons(col="cornsilk2", border.alpha = 0)+
+  # tm_shape(features) + 
+  tm_symbols(shape = 21, col="yellow", 
+             #size = 0.1,
+             alpha = 0.5) +  #6 and 26 are downward triangles
+  tm_compass(type = "arrow", 
+             position = c("left", "bottom")) +
+  tm_scale_bar(position = c("left", "bottom"),
+               breaks = c(0,5,10), 
+               text.size = 0.75) + 
+  #tm_credits("Sobotkova 2020", position = c("right", "bottom"), size = 0.8) +
+  #tm_layout(title = "Registered standing features") 
+  tm_layout(title = "A")
+```
+### Tmap Merged Potential BA mounds (3m and TRI >1.6)
+```{r}
+library(tmap)
+
+potentialBA <- Yam_mnds %>% 
+  filter(TRI > 1.6 & 
+         prom250mbuff > 70 &
+         Type == "Burial Mound" )
+
+potentialBA3m <- Yam_mnds %>% 
+  filter(HeightMax > 3 & 
+         prom250mbuff > 70 &
+         Type == "Burial Mound" )
+
+tm_3m <- tm_shape(Yam_mnds, bbox = st_bbox(Y_region))+
+  tm_symbols(shape = 2, col="#666666", size = 0.02) +
+tm_shape(Y_region) +
+ tm_borders(col = "grey", 
+              lwd = 2)+
+tm_shape(potentialBA, bbox = st_bbox(Y_region)) + 
+  tm_symbols(shape = 21, col="red",  #6 and 26 are downward triangles
+            # size = 0.1,
+             alpha = 0.5)+
+  tm_shape(BApoints) + 
+  tm_symbols(shape = 24, col="black",  #6 and 26 are downward triangles
+             size = 0.3)+
+ tm_layout(scale =2, title = "A")
+
+tm_tri <- tm_shape(Yam_mnds, bbox = st_bbox(Y_region))+
+  tm_symbols(shape = 2, col="#666666", size = 0.02) +
+ tm_shape(Y_region) +
+    tm_borders(col = "grey", 
+              lwd = 2)+
+ tm_shape(potentialBA3m, bbox = st_bbox(Y_region)) + 
+  tm_symbols(shape = 21, col="yellow", 
+             #size = 0.1,
+             alpha = 0.5) +  #6 and 26 are downward triangles
+ tm_shape(BApoints) + 
+  tm_symbols(shape = 24, col="black",  #6 and 26 are downward triangles
+             size = 0.3)+
+  tm_compass(type = "arrow", 
+             position = c("left", "bottom")) +
+  tm_scale_bar(position = c("left", "bottom"),
+               breaks = c(0,5,10), 
+               text.size = 0.75) + 
+  #tm_credits("Sobotkova 2020", position = c("right", "bottom"), size = 0.8) +
+  #tm_layout(title = "Registered standing features") 
+  tm_layout(scale =2, title = "B")
+
+tmap_arrange(tm_3m, tm_tri)
+
+```
+```{r print, eval=FALSE}
+tiff("../figures/Figure04.tiff", width = 1600, height = 1000)
+tmap_arrange(tm_3m, tm_tri)
+dev.off()
+```
+
 
 ## Table the potential BA mounds
 
-```{r}
-potentialBA <- Yam_mnds %>% 
+```{r BA-3m}
+potentialBA3m <- Yam_mnds %>% 
               st_drop_geometry() %>% 
   filter(HeightMax > 3 & 
+           prom250mbuff > 70 &
+         Type == "Burial Mound" )
+#write.csv(potentialBA3m, "../output_data/potentialBA3m.csv")
+
+formattable(potentialBA3m)
+
+```
+
+```{r BA-TRI}
+potentialBA <- Yam_mnds %>% 
+              st_drop_geometry() %>% 
+  filter(TRI > 1.6 & 
            prom250mbuff > 70 &
          Type == "Burial Mound" )
 #write.csv(potentialBA, "../output_data/potentialBA.csv")
 
 formattable(potentialBA)
-
 ```
 
 ## Height and Elevation comparisons between BA and Yambol mounds
@@ -276,8 +376,7 @@ boxplot(BApoints$HeightMax[BApoints$HeightMax>0], Yam_mnds$HeightMax[Yam_mnds$He
 
 ### Elevations
 ```{r}
-
-#png(filename="../output_data/mndBAYam.png", width=300, height=450)
+tiff(filename="../figures/Figure02.tiff", width=600, height=900, units = "mm", res = 300)
 Yam_mnds %>% 
   ggplot() +
   geom_histogram(aes(x=elevAster,  fill = "All"), binwidth = 10)  +
@@ -285,9 +384,13 @@ Yam_mnds %>%
   labs(title = "Mound elevations in Yambol",
        x = "Elevation (m)",
        y = "Count")+
-  theme_bw()+
+  theme_bw(base_size=60)+
   scale_fill_grey( name = "Mounds") + 
-  theme(legend.position = "bottom")#
+  theme(legend.position = "bottom") 
+        #legend.text = element_text(size=48),
+        #axis.text=element_text(size=48),
+        #axis.title=element_text(size=48,face="bold"))
+dev.off()#
 ```
 
 ### Prominence comparison
@@ -319,7 +422,7 @@ BApoints %>%
 ### Prominence densities
 
 To get prominence plotted as densities rather than histograms, one must rerun ProminenceMC script.
-```{r MC-densities, eval=FALSE}
+```{r MC-densities, eval = FALSE}
 
 # Calculate the mound densities
 
@@ -361,4 +464,29 @@ ggplot() +
   labs(x = "Topographic Prominence (%)")
 ```
 
+```{r eval = FALSE, echo = FALSE}
+tiff("../figures/Figure03.tiff", width = 2000, height = 1600)
+ggplot() +
+  geom_line(data = yambol_region_densities,
+            mapping = aes(x = Prominence,
+                          y = Frequency),
+            col = "lightgrey") +
+  geom_ribbon(data = yambol_densities_wide,
+              mapping = aes(x = Prominence,
+                            ymin = `Lower CI`,
+                            ymax = `Upper CI`),
+              col = "darkgrey",
+              alpha = 0.5) +
+  geom_line(data = mounds_densities,
+               mapping = aes(x = Prominence,
+                             y = Frequency),
+               color = "red", size = 6)+
+  geom_line(data = BAmounds_densities,
+               mapping = aes(x = Prominence,
+                             y = Frequency),
+               color = "pink", size = 6)+
+  theme_bw(base_size = 60)+
+  labs(x = "Topographic Prominence (%)")
+dev.off()
+```
 
