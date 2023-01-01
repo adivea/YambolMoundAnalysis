@@ -376,8 +376,8 @@ boxplot(BApoints$HeightMax[BApoints$HeightMax>0], Yam_mnds$HeightMax[Yam_mnds$He
 ```
 
 ### Elevations
-```{r}
-tiff(filename="../figures/Figure02.tiff", width=600, height=900, units = "mm", res = 300)
+```{r }
+#tiff(filename="../figures/Figure02.tiff", width=600, height=900, units = "mm", res = 300)
 Yam_mnds %>% 
   ggplot() +
   geom_histogram(aes(x=elevAster,  fill = "All"), binwidth = 10)  +
@@ -391,7 +391,7 @@ Yam_mnds %>%
         #legend.text = element_text(size=48),
         #axis.text=element_text(size=48),
         #axis.title=element_text(size=48,face="bold"))
-dev.off()#
+#dev.off()#
 ```
 
 ### Prominence comparison

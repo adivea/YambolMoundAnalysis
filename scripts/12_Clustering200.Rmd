@@ -1,0 +1,140 @@
+---
+title: "Clustering Mounds 200m"
+author: "Adela Sobotkova"
+date: "2023-01-01"
+output: html_document
+---
+## Finding mound clusters
+
+Traditionally, two mounds within 100-200m are considered and labelled by archaeologists as a necropolis. Can we determine such clusters computationally? This script shows how to find clusters using mound buffers of 100m and combining this output with Voronoi polygons. Some weakness is in linearly distributed necropoleis, which can escape attention, so clusters need to be composed from bottom up (lowest number of members to the highest number of members) 
+
+
+### TO DO: 
+
+- **eliminate duplicates** (see line 77). Best suggestion: run proximity spatial query on mounds that are within 15-20m of one another as potential duplicates. 
+- trickle spatial duplicate elimination into the initial analyses!!!
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(sf)
+library(raster)
+library(tidyverse)
+```
+
+## Load 2009-2022 features data
+We have a total of 1090 mounds, extinct and uncertain mound features in Yambol.
+```{r load-mounds}
+# Yambol mounds
+features <- readRDS("../output_data/mnds_aggr_27Dec.rds") # dataset is most recent from 27/12/2022
+Y_region <- st_read("../data/YamRegion.shp")
+head(features)
+features %>% group_by(Type) %>% tally()
+```
+## Clean out uncertainties
+```{r clean-condition}
+features <- features %>%
+  #st_drop_geometry() %>%  
+  dplyr::mutate(Condition = str_extract(Condition, "\\d")) %>%
+  dplyr::mutate(Condition = case_when(Condition == 0 ~ "NA",
+                               Condition == 6 ~ "5",
+                               Condition != 0 ~ Condition)) %>% 
+  dplyr::mutate(Condition = as.factor(Condition)) %>% 
+  dplyr::mutate(Type= gsub("\\?","",Type)) %>% 
+  dplyr::mutate(HeightMax = as.numeric(HeightMax)) %>% 
+  dplyr::mutate(DiameterMax = as.numeric(DiameterMax)) 
+```
+
+## Filter mounds
+```{r filter-mound}
+mnds <- features %>% 
+  dplyr::filter(Type == "Burial Mound" | Type == "Extinct Burial Mound" | Type == "Uncertain Mound")
+mnds
+```
+
+## Create buffers of 200 m
+```{r cluster-mound}
+mnds_buff200 <- st_buffer(mnds,200)
+```
+
+## Explore clusters
+
+How many mounds have one or more neighbor(s) within 100 m?
+Let's calculate the number of neighbours via a `sdgp` matrix with `st_intersects()` and then `sum()` and `filter()` help us determine their identity. We can review their location with `mapview()`
+```{r buffer-100}
+library(mapview)
+mapview(mnds_buff200) + mapview(mnds)
+
+test <- st_intersects(mnds_buff200, mnds_buff200$geometry)
+test0 <- lengths(st_intersects(mnds_buff200, mnds_buff200$geometry))>0 # intersects at least one - everything as each intersects itself
+test1 <- lengths(st_intersects(mnds_buff200, mnds_buff200$geometry))>1 # 848
+test2 <- lengths(st_intersects(mnds_buff200, mnds_buff200$geometry))>3 # 361 mounds in in clusters of 2+ mounds
+test5 <- lengths(st_intersects(mnds_buff200, mnds_buff200$geometry))>6 # 147 features 95-97
+test6 <- lengths(st_intersects(mnds_buff200, mnds_buff200$geometry))>7 # 119
+test7 <- lengths(st_intersects(mnds_buff200, mnds_buff200$geometry))>8 # 87
+test10 <- lengths(st_intersects(mnds_buff200, mnds_buff200$geometry))>11 # 30
+test11 <- lengths(st_intersects(mnds_buff200, mnds_buff200$geometry))>12 # none
+test21 <- lengths(st_intersects(mnds_buff200, mnds_buff200$geometry))>20 # none
+
+# How many clusters of 2 or more mounds are there? 
+sum(test2)
+
+# How many clusters of 10?
+sum(test7)
+
+# Which mounds are in clusters of 10?
+mnds %>% filter(test10)
+```
+## Visualise clusters among the Yambol mounds
+```{r map-clusters}
+# View the clusters of 5 to 10: 
+# We add the residual mounds so that we see all the neighbors as not all get tagged!
+mnds %>% filter(test5) %>% 
+  mapview() + mapview(mnds, cex = 0.1, zcol = "Type")
+```
+
+
+At least 10 mounds come out as having 10 neighbors within 100m, however, each of  these clusters contains duplicates - mounds which were registered repeatedly under different numbers in successive seasons. Not all of the mounds inside these clusters are marked as members of 10-mound-cluster, as only the central ones have all 10 within their buffer. The mounds at the far edges of the cluster do not get flagged as their buffers do not contain all the cluster fellows.
+
+Furthermore, at least two clusters contain **duplicates**: 
+- In the cluster W of Karavelovo, the three duplicates are 8022, 8023, 8024, and 8028 which were rudimentarily recorded in 2009 as part of remote sensing ground truthing, and again in 2010 as 9594, 9593, and 9595 and 9592 (from 2010+). IN this case 2009 can be eliminated. This means this cluster has 4 mounds less than counted.
+- There is another cluster near the quarry west of the Mogila village, with the following five duplicates: 8346, 8347, 8348, 8349, 8350 from 20XX to 9222, 9223, 9224, 9225, 9226. These need to be reviewed.
+
+## Check duplicates
+
+```{r duplicate-check}
+# Sanity check on the duplicates in the other clusters
+mnds[95,]
+test[[95]] # buffer around point 95 has allegedly over 6 neighbours
+#[1]95  96  97 347 348 610 613 614 616 617
+mapview(mnds[c(95:97,347:348,613:614,616:617),])
+
+# Duplicates - Mogila cluster!
+dplyr::distinct(mnds)
+duplicates <- lengths(st_equals(mnds))>1 # produces zero duplicates, as they do not have identical locations, but are withing 10-20m of one another. A spatial filter on close proximity is needed
+
+# Close mounds
+mnds[c(95:97,347:348,613:614,616:617),]
+```
+## Voronoi polygons
+There is a` st_voronoi()` function but when using it on points, one must `st_combine()` the points first (as with convex hull) so as to create a mesh covering all the points.
+
+```{r vor-mounds}
+# Create Voronyi geometries
+vor <- st_voronoi(st_combine(mnds))
+
+# st_voronoi returns a GEOMETRYCOLLECTION,
+#  some plotting methods can't use a GEOMETRYCOLLECTION.
+#  this returns polygons instead
+mnd_vor_poly <- st_collection_extract(vor)
+
+# Crop the polygons to Yambol region boundary
+vor <- st_intersection(Y_region, mnd_vor_poly)
+
+# Visualize
+mapview(vor)+ mapview(mnds %>% filter(test5)) + mapview(mnds, cex = 0.1)
+```
+
+Nice overview of where some of the medium sized clusters are. Next step: mark the clusters by 1-10 depending on how many neighbors each mound has and produce a colour-coded version so one can see the clusters better.
+
+We can expect that increasing the buffers to 200m will produce more clusters.
+
