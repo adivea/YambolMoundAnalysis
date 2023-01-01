@@ -59,7 +59,7 @@ mnds_buff200 <- st_buffer(mnds,200)
 ## Explore clusters
 
 How many mounds have one or more neighbor(s) within 100 m?
-Let's calculate the number of neighbours via a `sdgp` matrix with `st_intersects()` and then `sum()` and `filter()` help us determine their identity. We can review their location with `mapview()`
+Let's calculate the number of neighbors via a `sdgp` matrix with `st_intersects()` and then `sum()` and `filter()` help us determine their identity. We can review their location with `mapview()`
 ```{r buffer-100}
 library(mapview)
 mapview(mnds_buff200) + mapview(mnds)
@@ -135,6 +135,4 @@ mapview(vor)+ mapview(mnds %>% filter(test5)) + mapview(mnds, cex = 0.1)
 ```
 
 Nice overview of where some of the medium sized clusters are. Next step: mark the clusters by 1-10 depending on how many neighbors each mound has and produce a colour-coded version so one can see the clusters better.
-
-We can expect that increasing the buffers to 200m will produce more clusters.
 
