@@ -38,12 +38,15 @@ Its outputs are:
 - mosaiced raster that fits the confines of the Yambol Province
 - mosaiced raster that crosses the Yambol-Turkish border 
 
+NEEDS: 2022 merged dataset
+
 ## Setup
 
 ```{r libraries}
 library(tidyverse)
 library(sf)
 library(raster)
+library(mapview)
 ```
 
 ## Load 2009-2018 data
@@ -87,7 +90,7 @@ mnd22 <- mounds22 %>%
 rm(mounds22_1,mounds22_2,mounds22)
 ```
 
-We should have 310 features from the 2022 season
+We should have 310 features from the 2022 season. To verify, check the Straldzha ridge mounds, which were registered in the last day of survey on 29 Sep 2022.
 
 ## Spatialize
 
@@ -111,11 +114,17 @@ which(is.na(mnd22$geospatialcolumn))
 # convert to a simple feature
 mn22 <- st_as_sf(mnd22, coords = c("Easting", "Northing"), crs = 32635)
 
-# sanity check
+# sanity check - looking for ca 30 features on 29 Sep
+mn22 %>% dplyr::filter(Date == "29 Sep") %>% 
+  mapview()
+
+# overview
 plot(mn18$geometry, col = 'darkred');plot(mn22$geometry, col = 'red', add =T)
 
 rm(list = c("mounds22_1","mounds22_2", "mounds22", "mnd22"))
 
+# export 2022 data as shapefile
+# st_write(mn22, "../output_data/2022elhovo.shp")
 ```
 
 
@@ -162,6 +171,7 @@ Y_elev <- crop(YT_elev32635, Y_region)
 Y_elev <- mask(Y_elev, Y_region)
 writeRaster(Y_elev, "../output_data/Yelev32635.tif", format="GTiff", overwrite = TRUE)
 
+# clean up
 rm(Yam)
 rm(Tur)
 rm(Y_elev)
@@ -369,8 +379,8 @@ mapview(mnds %>% filter(Type == "Burial Mound"), zcol = "distBG")
 
 Export the interim enriched set of all features (inside and outside of Yambol) collected during 2009-2022 seasons in the Yambol region. These will need to be filtered for actual mounds as there are settlement mounds, bunkers and lots of other stuff in there. They also need streamlining in terms of Condition, Height, etc. 
 ```{r interim-export, eval = FALSE}
-write_rds(mnds, "../output_data/mnds_aggr_27Dec.rds")
-#read_rds("../output_data/mnds_aggr.rds")
+write_rds(mnds, "../output_data/features_aggr_27Dec.rds")
+#read_rds("../output_data/features_aggr_27Dec.rds")
 ```
 
 ## Export rasters as a brick

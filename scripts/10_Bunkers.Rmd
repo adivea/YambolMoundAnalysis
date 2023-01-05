@@ -31,7 +31,7 @@ library(raster)
 ## Load 2009-2022 mound data and 2018 - 2022 military feature data
 ```{r}
 getwd()
-Yam_mnds <- readRDS("../output_data/mnds_aggr.rds")
+Yam_mnds <- readRDS("../output_data/features_aggr_27Dec.rds")
 Yam_mil <- read_csv("../output_data/MIlitaryFeatures-OR12Dec22.csv")
 ```
 

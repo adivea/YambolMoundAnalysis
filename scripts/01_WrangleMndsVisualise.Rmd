@@ -37,9 +37,10 @@ library(sf)
 
 ## Load data
 ```{r -load-aggr-data}
-features <- read_rds("../output_data/mnds_aggr_27Dec.rds")
+features <- read_rds("../output_data/features_aggr_27Dec.rds")
 str(features)
 #colnames(features)
+#st_write(features, "../output_data/features_aggr_27Dec.shp")
 ```
 
 ## Validation I: Check how many of the features are actually mounds

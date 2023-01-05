@@ -25,7 +25,7 @@ library(tidyverse)
 We have a total of 1090 mounds, extinct and uncertain mound features in Yambol.
 ```{r load-mounds}
 # Yambol mounds
-features <- readRDS("../output_data/mnds_aggr_27Dec.rds") # dataset is most recent from 27/12/2022
+features <- readRDS("../output_data/features_aggr_27Dec.rds") # dataset is most recent from 27/12/2022
 Y_region <- st_read("../data/YamRegion.shp")
 head(features)
 features %>% group_by(Type) %>% tally()

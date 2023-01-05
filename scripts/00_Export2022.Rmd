@@ -63,6 +63,7 @@ We have the zemlishte village point data with Name_en and EKATTE in ElhStr_towns
 # Zemlishte information sit in ElhStr_towns shapefile
 village <- read_sf("../data/ElhStr_towns.shp")
 data22 <- read_sf("../data/ElhStr_features.shp")
+sum(mnd22$TRAP%in%data22$TRAP) # only 238 features from 310 in 2022 are in the GIS dataset, REDO!
 ```
 
 ### Wrangle the features and nearest zemlishte 
