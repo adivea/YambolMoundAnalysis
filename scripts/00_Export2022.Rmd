@@ -186,11 +186,11 @@ StrElh_data <- cbind(ElhStr_features %>% st_drop_geometry(), Easting = st_coordi
 
 StrElh_data_extended <- StrElh_data %>% 
   left_join(features, by = "TRAP") %>% 
-  dplyr::select(- EKATTE.x ,- geometry, - distTown,- distBG) %>% 
-  dplyr::rename(Zemlishte = Name_en.x,DistanceZemlishte = distToTown,DirectionToZemlishte = azimuth)
+  dplyr::select(-EKATTE ,- geometry, - distTown,- distBG) %>% 
+  dplyr::rename(Zemlishte = Name_en,DistanceZemlishte = distToTown,DirectionToZemlishte = azimuth)
 
-#write.csv(features22 %>% st_drop_geometry(), "../output_data/features22forToshko.csv")
-write.csv(Toshko_data_extended, "../output_data/features22forToshko.csv")
+
+write.csv(StrElh_data_extended, "../output_data/StrElhforToshko523.csv")
 
 ```
 
