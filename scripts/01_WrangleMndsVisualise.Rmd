@@ -38,9 +38,17 @@ library(sf)
 ## Load data
 ```{r -load-aggr-data}
 features <- read_rds("../output_data/features_dd_later_27Dec.rds")
+
 str(features)
+
+# write to shapefile
 #colnames(features)
-#st_write(features, "../output_data/features_aggr_27Dec.shp")
+#st_write(features, "../output_data/features_dd_later_27Dec.shp")
+
+# repeat for earlier features (for spatial duplicates)
+# features_early <- read_rds("../output_data/features_dd_early_27Dec.rds")
+#st_write(features_early, "../output_data/features_dd_early_27Dec.shp")
+
 ```
 
 ## Validation I: Check how many of the features are actually mounds

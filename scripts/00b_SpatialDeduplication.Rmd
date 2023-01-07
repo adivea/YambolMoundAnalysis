@@ -131,6 +131,8 @@ triplicates <- features %>%
   select(TRAP) %>% 
   slice(triples) %>% 
   arrange(TRAP)
+
+# print potential triplicates for manual check
 write.table(triplicates, "../output_data/triplicates_sp.txt")
 
 # Use the indeces from above to view
@@ -176,13 +178,16 @@ In terms of duplicates, we have two options of dealing with them:
 * replace the first-time (upto2010) records with revisit records (more compatible, but do not exist in AKB)
 
 ### Duplicates' TRAP IDs by season
+in two paired vectors. Item in upto2010 matches the location of its duplicate in post2010 for future reference.
 ```{r dupl-TRAPids}
 # Early records
-upto2010 <- c(6011,8030, 8022:8025, 8028,8029, 8035, 8350:8353, 8357,8359, 8434,8669, 9077)
+upto2010 <- c(6011,8022:8025, 8028,8029,8030, 8035, 8350:8353, 8357,8359, 8434,8669, 9077)
 
 # Later records
-post2010 <- c(9357,9358, 9591:9596, 8202,9226,9227,9257,9258,9219,9220,9216,9740,9715)
+post2010 <- c(9357,9594,9595,9593,9596,9592,9591,9358, 8202,9226,9227,9258,9257,9220,9219,9216,9740,9715)
 
+
+write.table(cbind(upto2010,post2010), "../output_data/duplicates_final.txt")
 ```
 
 ### Eliminate either set of duplicates
