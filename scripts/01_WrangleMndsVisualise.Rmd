@@ -37,7 +37,7 @@ library(sf)
 
 ## Load data
 ```{r -load-aggr-data}
-features <- read_rds("../output_data/features_aggr_27Dec.rds")
+features <- read_rds("../output_data/features_dd_later_27Dec.rds")
 str(features)
 #colnames(features)
 #st_write(features, "../output_data/features_aggr_27Dec.shp")
@@ -62,7 +62,8 @@ features %>%
 ```
 In the tally of "Other" types, there are 34 Legacy verification features and 41 Survey features. While the latter are expected, the 34 LV features require follow up. TO BE DONE!! 
 
-## Validation II: Check for duplicates
+## Validation II: Check for duplicates (similar attributes)
+Spatial duplication is addressed in 00b_SpatialDeduplication.Rmd
 ```{r duplicate-check}
 features$TRAP[duplicated(features$TRAP)] 
 ```

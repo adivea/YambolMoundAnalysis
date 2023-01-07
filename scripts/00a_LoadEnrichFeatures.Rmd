@@ -38,7 +38,9 @@ Its outputs are:
 - mosaiced raster that fits the confines of the Yambol Province
 - mosaiced raster that crosses the Yambol-Turkish border 
 
-NEEDS: 2022 merged dataset
+NEEDS: 
+2022 merged dataset - -DONE in 00_Export2022
+Spatial deduplilcation -- DONE in 00b_Deduplication
 
 ## Setup
 
@@ -371,17 +373,16 @@ summary(mnds[,11:19])
 
 
 
-```{r}
+```{r view-BGborder-distance}
 library(mapview)
 mapview(mnds %>% filter(Type == "Burial Mound"), zcol = "distBG")
 ```
-## Export enriched dataset
-
-Export the interim enriched set of all features (inside and outside of Yambol) collected during 2009-2022 seasons in the Yambol region. These will need to be filtered for actual mounds as there are settlement mounds, bunkers and lots of other stuff in there. They also need streamlining in terms of Condition, Height, etc. 
-```{r interim-export, eval = FALSE}
+## Export interim
+This is interim export of all features from Yambol and around that still contains spatial duplicates. It is included as a shortcut to all the calculation above.
+```{r export-features}
 write_rds(mnds, "../output_data/features_aggr_27Dec.rds")
-#read_rds("../output_data/features_aggr_27Dec.rds")
 ```
+
 
 ## Export rasters as a brick
 

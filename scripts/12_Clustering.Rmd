@@ -9,7 +9,7 @@ output: html_document
 Traditionally, two mounds within 100-200m are considered and labelled by archaeologists as a necropolis. Can we determine such clusters computationally? This script shows how to find clusters using mound buffers of 100m and combining this output with Voronoi polygons. Some weakness is in linearly distributed necropoleis, which can escape attention, so clusters need to be composed from bottom up (lowest number of members to the highest number of members) 
 
 
-### TO DO: 
+### TO DO:  DONE on 7 Jan 2023
 
 - **eliminate duplicates** (see line 77). Best suggestion: run proximity spatial query on mounds that are within 15-20m of one another as potential duplicates. 
 - trickle spatial duplicate elimination into the initial analyses!!!
@@ -25,7 +25,7 @@ library(tidyverse)
 We have a total of 1090 mounds, extinct and uncertain mound features in Yambol.
 ```{r load-mounds}
 # Yambol mounds
-features <- readRDS("../output_data/features_aggr_27Dec.rds") # dataset is most recent from 27/12/2022
+features <- readRDS("../output_data/features_dd_later_27Dec.rds") # dataset is most recent from 27/12/2022
 Y_region <- st_read("../data/YamRegion.shp")
 head(features)
 features %>% group_by(Type) %>% tally()
@@ -136,144 +136,4 @@ Nice overview of where some of the medium sized clusters are. Next step: mark th
 
 We can expect that increasing the buffers to 200m will produce more clusters.
 
-## Spatial query - eliminate duplicates
-find mounds that are 15-20 m from one another and then manually check if it is the same feature or not. If the proximate features were captured in the same season, they are not duplicates (their physical proximity may be a result of GPS error or small feature size) and their numbers will be sequential. Mounds duplicated in different season will thus have non-proximate numbers. 
 
-```{r}
-# create a buffer of 15m
-dupl <- st_buffer(mnds, 15)
-
-# check which of these near buffers intersect
-# this produces a sgbp matrix 
-dupl_sp <- st_intersects(dupl, dupl$geometry)
-
-# produce a logical vector from sgbp that marks TRUE records with at least 2 mnds
-dupl <- lengths(st_intersects(dupl, dupl$geometry)) >= 2  # there are 108 duplicate and triplicate records
-
-multiples <- mnds %>%
-  st_drop_geometry() %>% 
-  select(TRAP) %>% 
-  filter(dupl) %>% 
-  distinct()
-
-# write.table(multiples, "../output_data/multiples_sp.txt") # list of 108 multiples
-
-# use the list to filter mounds 
-# use the resulting map to visually inspect potential duplicates
-mnds %>% filter(dupl) %>% mapview(zcol= "Type")
-```
-
-Filter the duplicates TRAP IDs for manual check
-```{r}
-# create a buffer of 15m
-dupl <- st_buffer(mnds, 15)
-
-# Logical vector marking 94 records that have at least 1 duplicate
-dupl <- lengths(st_intersects(dupl, dupl$geometry)) == 2
-
-# The actual list of duplicates
-list_duplicates <- dupl_sp[dupl]
-
-duplicates <- mnds %>%
-  st_drop_geometry() %>% 
-  select(TRAP) %>% 
-  filter(dupl) %>% 
-  distinct() %>% 
-  arrange(TRAP)
-write.table(duplicates, "../output_data/duplicates_sp.txt")
-
-
-# View the records of all duplicates
-mnds %>% filter(dupl) %>% mapview() + mapview(mnds, cex = 0.1)
-
-```
-Duplicates: 
-NONE: Mamarchevo W, Malko Sharkovo, Iglika, Voden SE, G.Polyana NE, Bolyarovo SW, Granitovo N, Trankovo W, Drama. Krumovo S, General Inzovo, Borisovo S (8046 ok), Botevo, Pitovo, Mezhda N (two nearest clusters), Prohorovo NE, Kunevo N, Radevo, Sokol, Elenovo, Skobelevo,
-
-YES duplicated: 
-Slaveikovo 8669 (animal act) X 9740 (military act) seem like same point - why the different num ranges?
-Boyanovo: 8030X9358, 6011X9357, 8202 LGV X 8035RS?? What is going on?
-Karavelovo: 8022, 8023, 8024, 8025 and 8028 which were rudimentarily recorded in 2009 as part of remote sensing ground truthing, and again in 2010 as 9592 -96 (from 2010+). In this case 2009 can be replaced with later records. An interesting note: most have grown from 0.5 to 0.9m from 2009 - > 2010+
-
-Mogila: There is another cluster near the quarry west of the Mogila village, with the following five duplicates: 8346, 8347, 8348, 8349, 8350 from 20XX to 9222, 9223, 9224, 9225, 9226. These need to be reviewed.
-Mezhda: 9715 X 9077RS
-
-See scan from 6 Jan 2023 in cas email
-```{r suspects}
-# few suspect IDs
-
-suspects <- c(8332,8334,8755,8756,9074,9075,9357,9358,9591:9596)
-mnds %>% dplyr::filter(TRAP%in%suspects) %>% 
-  mapview() + mapview(mnds, cex = 0.1)
-
-# When replacing mounds here are the early records
-pre2011 <- c(6011,8022:8025, 8028:8030, 8035, 8202, 8350:8359, 8434, 9077,8669)
-
-# and here are the later re-recorded entries
-post2011 <- c(9216,9219,9220,9226,9227,9257,9258,9357,9358,9591:9596,9615,9740)
-
-```
-
-
-```{r triplicates}
-
-# create a buffer of 15m
-dupl <- st_buffer(mnds, 15)
-
-
-# Logical vector marking 94 records that have at least 1 duplicate
-mult <- lengths(st_intersects(dupl, dupl$geometry)) > 2
-
-# How many triplicates or 2+ ?
-sum(mult) # 14
-
-# Specific TRAP ids of triplicates+
-list_triplicates <- dupl_sp[mult]
-
-# Series of indeces for the triplicates
-triples <- list_triplicates %>% 
-  unlist()
-
-# Pull TRAP IDs out of mounds using the triplicate indeces
-triplicates <- mnds %>%
-  st_drop_geometry() %>% 
-  select(TRAP) %>% 
-  slice(triples) %>% 
-  arrange(TRAP)
-write.table(triplicates, "../output_data/triplicates_sp.txt")
-
-# Use the indeces from above to view
-mnds %>% 
-  slice(triples) %>% 
-  mapview() + mapview(mnds, zcol = "Type", cex = 0.1)
-
-```
-Triplicates!!
-Legit: Chernozem, Malenovo, two clusters near Mezhda,Skobelevo
-Not OK: Mogila 8346-49 vs 9222- 9225
-
-"TRAP"
-"1" 8282 - Sitovo OK
-"2" 8283 --
-"3" 8284 --
-"4" 8332 - Mezhda OK
-"5" 8333 --
-"6" 8334 --
-"7" 8346 - Mogila duplicate 9224
-"8" 8347 -- 9225
-"9" 8348 -- 9223
-"10" 8349 -- 9222
-"11" 8584 - Chernozem ok
-"12" 8585 --
-"13" 8586--
-"14" 8590--
-"15" 9073 - Mezdha ok
-"16" 9074 --
-"17" 9075 --
-"18" 9089 - Skobelevo ok
-"19" 9090 --
-"20" 9091 --
-"21" 9222 - Mogila duplicates - see above
-"22" 9223
-"23" 9224
-"24" 9225

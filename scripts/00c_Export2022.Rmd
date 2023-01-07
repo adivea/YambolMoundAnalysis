@@ -141,9 +141,10 @@ write.csv(Toshko_data_extended, "../output_data/features22forToshko.csv")
 
 
 ## Data for Stralzha and Elhovo from 2010-2020
-Create distances to zemlishte for all features in Straldzha and Elhovo. Beware! May contain spatial duplicates!!!
+Create distances to zemlishte for all features in Straldzha and Elhovo. Beware! features_aggr_27Dec.rds contains spatial duplicates so use either dd_early or dd_later variant!!!
 ```{r}
-features <- readRDS("../output_data/features_aggr_27Dec.rds")
+features <- readRDS("../output_data/features_dd_early_27Dec.rds")
+mun <- read_sf("../data/Yam_Municipalities.shp")
 
 ElhStr <- mun[c(1,4),]
 
