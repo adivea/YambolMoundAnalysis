@@ -1,0 +1,140 @@
+---
+title: "Wrangle Yambol Mounds - early version"
+author: "Adela Sobotkova"
+date: "updated`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+library(formatR)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+## Wrangling Mound data out of FAIMS data
+
+The purpose of this script is to clean up and filter the total aggregate of FAIMS data originating from the Yambol region to mostly-mound points from within the regional boundary, whose attributes are analysis-ready and whose spatial points are deduplicated.
+
+This script uses the early records in case of the 18 spatial duplicates. For comparison on the stats, please use with script 01a
+
+## Setup
+```{r libraries}
+library(tidyverse)
+library(sf)
+```
+
+
+## Load data
+```{r -load-aggr-data}
+features <- read_rds("../output_data/features_dd_early_27Dec.rds")
+
+str(features)
+
+```
+
+## Validation I: Check how many of the features are actually mounds
+
+```{r type-tally}
+# Filter mounds by type
+features %>% 
+  group_by(Type) %>% 
+  tally()
+```
+```{r type-check}
+# Verify that "Other" category is not legacy-data verificaiton, because those should be mounds/extinct mounds if the symbol was a brown sunburst
+
+features %>% 
+  filter(Type == "Other") %>% 
+  group_by(Source) %>% 
+  tally()
+
+```
+In the tally of "Other" types, there are 34 Legacy verification features and 41 Survey features. While the latter are expected, the 34 LgV features required follow up on 27 Dec 2022. Inspection showed that many of the LGV features originate not from sunbursts but other map markers, such as raysed squares and triangles, which were demonstrated to lead to mounds less reliably. 
+
+### what is "other"?
+```{r}
+features %>% 
+  filter(Type == "Other" & Source == "Legacy verification") %>% 
+  group_by(PrincipalSourceOfImpact) %>% 
+  tally()
+```
+
+
+## Validation II: Check for duplicates (similar attributes)
+Spatial duplication is addressed in 00b_SpatialDeduplication.Rmd
+```{r duplicate-check}
+features$TRAP[duplicated(features$TRAP)] 
+```
+
+## Validation III: Clean up condition, height and other attribute
+
+```{r clean-up}
+features <- features %>%
+  #st_drop_geometry() %>%  
+  dplyr::mutate(Condition = str_extract(Condition, "\\d")) %>%
+  dplyr::mutate(Condition = case_when(Condition == 0 ~ "NA",
+                               Condition == 6 ~ "5",
+                               Condition != 0 ~ Condition)) %>% 
+  dplyr::mutate(Condition = as.factor(Condition)) %>% 
+  dplyr::mutate(Type= gsub("\\?","",Type)) %>% 
+  dplyr::mutate(HeightMax = as.numeric(HeightMax)) %>% 
+  dplyr::mutate(DiameterMax = as.numeric(DiameterMax)) 
+
+#levels(features$Condition) = c(1,2,3,4,5, NA)
+
+# See if you need to eliminate uncertainty from Height
+# unique(features$HeightMax) # are there any ? in the data values?
+# features %>%  # if the answer is yes, you can filter them out.
+#   mutate(HeightMax = gsub("\\?", "",HeightMax)) %>%
+#   mutate(HeightMax = as.numeric(HeightMax))
+features %>% 
+  group_by(Type) %>% 
+  tally()
+```
+### Quick visual
+
+```{r}
+library(mapview)
+mapview(features, zcol = "Type")
+```
+
+### Subset to mounds only
+
+```{r filter-mounds}
+mnds <- features %>% 
+  dplyr::filter(Type == "Burial Mound" | Type == "Extinct Burial Mound" | Type == "Uncertain Mound")
+
+str(mnds)
+```
+
+## Clip data by Yambol region
+```{r yambol-mnds}
+Y_region <- st_read("../data/YamRegion.shp")
+Yam_mnds <- st_intersection(mnds, Y_region$geometry)
+plot(Yam_mnds$geometry);
+plot(Yam_mnds["Condition"])
+```
+
+## Export the Yambol mound dataset
+
+now that all looks reasonably well, let's export the data. These are features inside the Yambol Province.
+
+```{r export-mnds}
+write_rds(Yam_mnds, "../output_data/Yam_dd_early_mnds.rds")
+#st_write(Yam_mnds,"../output_data/Yam_mnds.shp", append = FALSE )
+
+```
+

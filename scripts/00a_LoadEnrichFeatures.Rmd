@@ -57,17 +57,10 @@ This data is a bit special as it was processed in 2020 and contains all map moun
 # Environmental-extraction-enriched output from 2020 Mound Merging repo > 07_EnrichSpatial.R
 mn09_18 <- read_csv2("../data/enriched_all.csv")
 names(mn09_18)
+
 mn09_18 %>% 
   group_by(Type) %>% 
   count()
-
-
-# If you need raw data, see the raw/ folder
-# mn17 <- read_csv("../data/2017ElenovoAll.csv")
-# mn18 <- read_csv("../data/2018Bolyarovo.csv")
-# mn10 <- read_csv("../data/2010-LGV-Bara-enrichedOR-20200619.csv")
-# names(mn10)
-# names(mn17)
 ```
 ## Load 2022 data
 
@@ -75,7 +68,7 @@ mn09_18 %>%
 
 I used 2022_Elhovo_ORcleaningscript to clean up data from the Elhovo 2022 Burial module first (https://docs.google.com/document/d/1Xcq5yuQOrQpVOkGF2fp3ZeK4ynyaTVa3sZZ41NI7ZF8/edit) and deposit the exported spreadsheets in the data/ folder
 
-```{r load-mnd22-data}
+```{r load-22-data}
 # Load data
 mounds22_1 <- read_csv("../data/20220921BurialMoundOne-csv.csv")
 mounds22_2 <- read_csv("../data/20220930BurialMoundTwo-csv.csv")
@@ -84,22 +77,121 @@ mounds22 <- rbind(mounds22_1,mounds22_2)
 table(mounds22$TypeClean)
 names(mounds22)
 write.csv(mounds22, "../data/2022Elhovo.csv")
-
-# wrangle to 20 columns
-mnd22 <- mounds22 %>%
-  dplyr::rename(TRAP=MoundID, Type=TypeClean, LU_Around = LanduseAroundMound, LU_Top = LanduseOnTopOfMound) %>% 
-  dplyr::select(TRAP, Source, Type, LU_Around, LU_Top, DiameterMax, HeightMax, Condition, PrincipalSourceOfImpact, Date, Northing, Easting, geospatialcolumn)
-rm(mounds22_1,mounds22_2,mounds22)
+```
+### reload
+```{r}
+m2022 <- read_csv("../data/2022Elhovo.csv")
+names(m2022)
 ```
 
+### merge notes into one or two columns
+```{r}
+m2022 <- m2022 %>% 
+  select(-NotesAndPhotoID)
+
+m2022 %>% 
+  select(grep(" 2",names(m2022)), grep("Note",names(m2022))) 
+   
+
+# Unite them into two columns for damage and generate with unite(x, y, sep = ",", remove = TRUE, na.rm = TRUE) function
+m2022 <- m2022 %>% 
+ unite(AllNotes, c(grep("[Nn]ote",names(m2022))), sep = ",", remove = TRUE, na.rm = TRUE) 
+m2022$AllNotes
+m2022 <- m2022 %>% 
+  unite(DamageNotes, c(grep(" 2",names(m2022))), sep = ",", remove = TRUE, na.rm = TRUE)  # Damage notes have "2" in column name from OpenRefine
+m2022$DamageNotes  # we have reduced the initial 52 to 48 variable
+names(m2022)
+```
+
+### Clean up the Date
+...which currently only contains day and month and needs appending 2022 to it
+```{r}
+library(lubridate)
+
+# date
+dmy(m2022$Date) 
+
+# Implement with paste() function
+m2022 <- m2022 %>% 
+  mutate(Date=paste(m2022$Date, sep=" ","2022"))
+
+# Shape the date in ymd format
+m2022 <- m2022 %>% 
+  mutate(Date=dmy(Date))
+
+```
+
+```{r}
+# wrangle to 20 columns
+m2022 <- m2022 %>%
+  dplyr::rename(TRAP=MoundID, Type=TypeClean, LU_Around = LanduseAroundMound, LU_Top = LanduseOnTopOfMound) %>% 
+  dplyr::select(TRAP, Source, Type, LU_Around, LU_Top, DiameterMax, HeightMax, Condition, PrincipalSourceOfImpact, Date, AllNotes, DamageNotes,Northing, Easting, geospatialcolumn)
+rm(mounds22_1,mounds22_2,mounds22, mnds22)
+
+names(mnd22)
+```
+
+
+```{r}
+m2022 %>% 
+  filter(Type == "Other" & Source == "Legacy verification") 
+```
+
+## Check the Other
+especially when in connection with Legacy data verification, as that should be extinct mound, unless a different symbol is involved than sunburst.
+
+```{r}
+m2022 %>% 
+    filter(TypeClean == "Other" & Source == "Legacy verification") %>% 
+  select(Longitude, Latitude) %>% 
+  leaflet() %>%
+  addTiles() %>% 
+  addMarkers()
+```
+
+
+
+
+
+
+
+
 We should have 310 features from the 2022 season. To verify, check the Straldzha ridge mounds, which were registered in the last day of survey on 29 Sep 2022.
+ ###### SECTION IN PROGRESS TO FIRST BIND AND SPATIALIZE mounds
+## Combine
+```{r combine-18-22}
+
+names(m2022) # 18
+names(mn09_18) # TopoID, Note, ...1, prom250mbuff
+str(mn22)
+str(mn09_18)
+
+# Streamline columns before merging
+mn18 <- mn09_18 %>% 
+  dplyr::select(TRAP,Source, Type, LU_Around, LU_Top, DiameterMax, HeightMax, Condition, PrincipalSourceOfImpact,  Note, geometry)
+
+mn22 <- m2022 %>% 
+  dplyr::select(TRAP, Source, Type, LU_Around, LU_Top, DiameterMax, HeightMax, Condition, PrincipalSourceOfImpact, AllNotes, geospatialcolumn) %>% 
+  rename(Note = AllNotes, geometry = geospatialcolumn)
+
+# Merge datasets
+mnds <- rbind(mn18,mn22)
+
+# Sanity check to see if all looks good
+plot(mnds$geometry)
+str(mnds)
+summary(mnds[,2:10])
+# glimpse(mnds)
+# sapply(mnds[,6:8], as.numeric)
+
+```
 
 ## Spatialize
+
 
 ```{r make-verified-spatial}
 # check for missing coordinates
 which(is.na(mn09_18$geometry))
-
 # convert to a simple feature
 mn18 <- st_as_sf(mn09_18, coords = c("X", "Y"), crs = 32635)
 
@@ -117,7 +209,7 @@ which(is.na(mnd22$geospatialcolumn))
 mn22 <- st_as_sf(mnd22, coords = c("Easting", "Northing"), crs = 32635)
 
 # sanity check - looking for ca 30 features on 29 Sep
-mn22 %>% dplyr::filter(Date == "29 Sep") %>% 
+mn22 %>% dplyr::filter(Date == "29 Sep 2022") %>% 
   mapview()
 
 # overview
@@ -140,7 +232,7 @@ bg_border <- st_read("../data/Bulgaria_Border.shp")
 Y_towns <- st_read("../data/Modern_settlements_Yambol_TRAP.shp")
 #towns <- st_read("~/../Documents/Professional/Projects/MQNS/GIS/Vectors/Yamurbanarea.shp") # towns within 15km buffer of Yambol boundary exported from JICA
 Y_region <- st_read("../data/YamRegion.shp")
-
+Y_towns_poly <- read_sf("../data/YamTownpoly/Yam_towns_poly.shp")
 ```
 
 ### Mosaic and project component rasters
@@ -246,11 +338,29 @@ This is a two-step process:
 # Distance to nearest (as the crow flies) village
 mn22$distTown <- st_distance(mn22, Y_towns[st_nearest_feature(mn22, Y_towns),], by_element = TRUE)
 head(mn22,3)
+head(mn22,3)
 mn18$distTown <- st_distance(mn18, Y_towns[st_nearest_feature(mn18, Y_towns),], by_element = TRUE)
 head(mn18,3)
 ```
 
+### Distance from mound points to nearest settlement boundary!!!
 
+This is a two-step process: 
+
+1. selecting closest town via `st_nearest()` and 
+ `nearest <-  try(st_nearest_feature(mn22, towns))`
+ try()` is a wrapper to run an expression that might fail and allow recovery
+2. getting distance with `st_distance()`
+ `distTown <- st_distance(mn22, towns[st_nearest_feature(mn22, towns),], by_element = TRUE)`
+ 
+```{r distance}
+# Distance to nearest (as the crow flies) village
+mn22$distTownBoundary <- st_distance(mn22, Y_towns_poly[st_nearest_feature(mn22, Y_towns_poly),], by_element = TRUE)
+hist(mn22$distTownBoundary)
+hist(mn22$distTown)
+mn18$distTown <- st_distance(mn18, Y_towns[st_nearest_feature(mn18, Y_towns),], by_element = TRUE)
+head(mn18,3)
+```
 
 ### Sample elevation, aspect and slope at mound coordinates for 2022 data
 

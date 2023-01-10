@@ -1,0 +1,98 @@
+---
+title: "Visualize Mnds"
+author: "Adela Sobotkova"
+date: "2023-01-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load 2009-2022 mound data
+We have a total of 1090 mounds, extinct and uncertain mound features in Yambol.
+```{r load-mounds}
+# Yambol mounds
+features <- readRDS("../output_data/features_dd_later_27Dec.rds") # dataset is most recent from 27/12/2022 and deduplicated
+Y_region <- st_read("../data/YamRegion.shp")
+head(features)
+features %>% group_by(Type) %>% tally()
+```
+## Mound sizes
+```{r mound-size}
+Yam_mnds %>%
+  group_by(Type) %>%
+  summarize(Max = max(HeightMax, na.rm = T), 
+            Mean = mean(HeightMax, na.rm = T),
+            Median = median(HeightMax, na.rm = T))
+
+```
+## Mound size boxplots
+```{r size-boxplot}
+
+Yam_mnds %>%
+    ggplot(aes(x = Type, y = HeightMax)) +
+    geom_violin()+
+    geom_jitter(alpha = 0.3,
+    		color = "tomato",
+    		width = 0.2,
+    		height = 0.2) +
+   theme_bw() +
+  labs(x = "Mound type",
+       y = "Maximum recorded height",
+       title = "Mound size by feature type")
+```
+
+```{r size-histogram}
+Yam_mnds %>% 
+  ggplot(aes(x = HeightMax)) +
+  geom_histogram(aes(fill = Type)) +
+  theme_bw() +
+  labs(x = "Mound height (m)",
+       y = "Feature height recorded during visit",
+       title = "Mounds in the Yambol Region")
+
+
+```
+
+
+## Mound condition
+
+```{r condition-plot}
+plot(Condition ~ HeightMax, Yam_mnds)
+```
+## Plot Condition in Space
+
+```{r map-plot}
+plot(Yam_mnds["Condition"])
+plot(Yam_mnds["elevAster"])
+```
+
+## Static map
+```{r get-yambol-elev}
+library(raster)
+library(sf)
+
+Y_elev <- raster("../output_data/large/Yelev32635.tif")
+st_crs(Y_elev)==st_crs(Yam_mnds)
+
+plot(Y_elev)
+plot(Yam_mnds$geometry,cex = sqrt(Yam_mnds$HeightMax), add =T)
+```
+
+## Interactive maps
+
+### Mounds by height
+
+```{r mapview-height}
+library(mapview)
+class(Yam_mnds)
+mapview(Yam_mnds, zcol="HeightMax")
+```
+
+### Mounds and their condition
+```{r condition-map}
+library(mapview)
+mapview(Yam_mnds, zcol="Condition") + mapview(Y_elev)
+```
+
