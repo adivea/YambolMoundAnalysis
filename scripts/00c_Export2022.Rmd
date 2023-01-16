@@ -195,6 +195,12 @@ write.csv(StrElh_data_extended, "../output_data/StrElhforToshko523.csv")
 
 ```
 
-
+### Export in csv2
+```{r}
+m523 <- read_csv("../output_data/StrElhforToshko523.csv")
+write.csv2(m523, "../output_data/StrElhforToshko523_csv2.csv")
+m310 <- read_csv( "../output_data/features22forToshko.csv")
+write.csv2(m310, "../output_data/features22forToshko_csv2.csv")
+```
 
 
