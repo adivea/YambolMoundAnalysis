@@ -21,7 +21,15 @@ opts_chunk$set(echo=TRUE,
 opts_knit$set(width=75)
 ```
 
+## Visualize military installations on the Cold-War border
 
+Yambol region borders on Turkey and Greece and with the Tundzha River flowing through the border in a deep ravine overgrown with forests, this region represented a prime ground for birectional movement. Movement of populations is posited here since the first farming immigrants in the 6th millennium. As the arid conditions of the early HOlocene were letting up and humidity allowed for higher vegetation to spread, the first farmers settled near the Tundzha River, planting crops and building the first permanent settlements in the area. 8000 years later, this was an administrative border between two hostile worlds, carefully guarded and with restricted movement. Military forces on both sides set up observation posts and defensive locations so as to keep control over the territory. 
+
+This scripts visualizes the locations of military installations recorded in place of burial mounds (symbols in Soviet topographic maps).
+
+To DOES: 
+ - national boundaries
+ - all map mounds needed!
 ```{r libraries}
 library(tidyverse)
 library(sf)
@@ -31,8 +39,9 @@ library(raster)
 ## Load 2009-2022 mound data and 2018 - 2022 military feature data
 ```{r}
 getwd()
-Yam_mnds <- readRDS("../output_data/features_aggr_27Dec.rds")
+Yam_mnds <- readRDS("../output_data/features_dd_later_27Dec.rds")
 Yam_mil <- read_csv("../output_data/MIlitaryFeatures-OR12Dec22.csv")
+mapmnds <- read_sf("../data/MapMounds32635.shp")
 ```
 
 ### Explore the data a bit
@@ -56,6 +65,18 @@ Y_region <- st_read("../data/YamRegion.shp")
 
 Y_elev <- raster("../output_data/large/Yelev32635.tif")
 plot(Y_elev, main = " Yambol region with burial mound distribution");plot(Yam_mnds$geometry, cex = sqrt(as.numeric(Yam_mnds$HeightMax)), add= T)
+```
+## Map mounds 
+are good for the background, but now the file contains all kinds of benchmarks. Let's filter to the sunburst, brown sun-like symbol, which in 99% cases leads to a urial mound.
+
+```{r}
+table(mapmnds$MpSymbl)  # 'circle' seems the best think to search on with ca 4289records
+
+mapmnds <- mapmnds %>% 
+  filter(grepl("circle",MpSymbl))
+mapmnds
+Y_region
+plot(mapmnds$geometry); plot(Y_region$geometry,add = T)
 ```
 
 
@@ -86,7 +107,7 @@ Maps:
 3: Typology of mil.installations
 4: Sitovo site with different installations?
 
-## Yambol with an inset of BG - Leaflet
+### Yambol with an inset of BG - Leaflet
 
 ```{r}
 library(leaflet)
@@ -99,7 +120,7 @@ leaflet() %>%
 
 ```
 
-## Bulgaria inset preparation
+### Bulgaria inset preparation
 ```{r}
 BG <- getData('GADM', country = 'BG', level = 0)
 BG <- st_transform(st_as_sf(BG), 32635)
@@ -108,8 +129,8 @@ BG <- st_transform(st_as_sf(BG), 32635)
 plot(BG$geometry, col = "lightgrey", border = "grey"); plot(Y_region$geometry,col = "darkgrey", border= "darkgrey", add = T)
 ```
 
-Prepare to print with the inset
-```{r}
+Prepare to print with the inset NOT READY
+```{r eval = FALSE}
 library(tmaptools)
 library(grid)
 
@@ -126,23 +147,31 @@ print(greece, vp=viewport(x= 0.17, y= 0.21, width= 0.3, height= 0.3))
 #dev.off()
 ```
 
+
+## Mounds in TMAPS
 Tmap differentiating Yambol mounds/features and military installations
 
-
+### Overview
 ```{r}
 library(tmap)
+# all the features throughout the region
 tm_shape(Yam_mnds, bbox = st_bbox(Y_region))+
-  tm_symbols(shape = 2, col="#666666", size = 0.02) +
+  tm_symbols(shape = 2, col="#666666", size = 0.01) +
+# regional boundary
 tm_shape(Y_region) +
  tm_borders(col = "grey", 
               lwd = 2)+
+# military installations
 tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) + 
   # tm_polygons(col="cornsilk2", border.alpha = 0)+
   # tm_shape(features) + 
-  tm_symbols(shape = 2, col="red", size = 0.1) +  #6 and 26 are downward triangles
+  tm_symbols(shape = 25, 
+             col="CentralFeature", 
+             palette = "plasma", # try Set2 ,Set3, viridis or other palettes
+             size = 0.2) +  #6 and 25 are downward triangles
   tm_compass(type = "arrow", 
-             position = c("left", "bottom")) +
-  tm_scale_bar(position = c("left", "bottom"),
+             position = c("right", "top")) +
+  tm_scale_bar(position = c("right", "top"),
                breaks = c(0,5,10), 
                text.size = 0.75) + 
   #tm_credits("Sobotkova 2020", position = c("right", "bottom"), size = 0.8) +
@@ -153,15 +182,79 @@ tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) +
   tm_layout(main.title = "Yambol and Bulgaria",
             legend.outside = FALSE)
 ```
-Local typology
+### Local typology
 ```{r}
 library(tmap)
-tm_shape(Yam_bunkers, bbox = st_bbox(Yam_bunkers)) + 
-  tm_dots(
-          # col = "CentralFeature", 
-          col = "grey",
-           shape = "CentralFeature", #6 and 26 are downward triangles
-           title = "Registered military features",
+tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]), 20000))) + 
+  tm_dots( shape = "CentralFeature", #6 and 26 are downward triangles
+            alpha= 0.4,
+            title = "Type of \nmilitary features",
+             size = 0.3) +  
+tm_shape(Y_region) +
+ tm_borders(col = "grey",
+              lwd = 2)+
+  tm_compass(type = "arrow", 
+             position = c("left", "top")) +
+  tm_scale_bar(position = c("left", "top"),
+               breaks = c(0,5,10), 
+               text.size = 0.75)  +
+  tm_layout(title = "B", legend.outside = TRUE)
+
+
+```
+### Facing directions 
+
+```{r}
+table(Yam_bunkers$FacingDirection)
+Yam_bunkers <- Yam_bunkers %>% 
+  #st_drop_geometry() %>% 
+  mutate(FD = case_when(
+    FacingDirection == "Southeast" ~ "South", 
+    FacingDirection == "Southwest" ~ "South", 
+    FacingDirection == "Northeast" ~ "North",
+    FacingDirection == "South" ~ "South",
+    FacingDirection == "North" ~ "North",
+    FacingDirection == "East" ~ "East",
+    FacingDirection == "West"~ "West"))
+
+table(Yam_bunkers$Feature_Facing)
+```
+### Combine feature type and facing direction at 30 km scale
+```{r}
+table(Yam_bunkers$FacingDirection)
+table(Yam_bunkers$FD)
+
+color_type <- rainbow(length(unique(Yam_bunkers$FD)))
+library(tmap)
+tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]),20000))) + 
+  tm_dots( col = "FD",
+           shape = "CentralFeature",
+          palette = color_type,
+          title = "Facing \ndirection",
+          alpha= 0.6,
+             size = 0.3) +  
+tm_shape(Y_region) +
+ tm_borders(col = "grey",
+              lwd = 2)+
+  tm_compass(type = "arrow", 
+             position = c("left", "top")) +
+  tm_scale_bar(position = c("left", "top"),
+               breaks = c(0,5,10), 
+               text.size = 0.75)  +
+  tm_layout(title = "B", legend.outside = TRUE)
+```
+### Combine feature type and facing direction at 10 km scale
+```{r}
+table(Yam_bunkers$FacingDirection)
+table(Yam_bunkers$FD)
+
+color_type <- rainbow(length(unique(Yam_bunkers$FD)))
+library(tmap)
+tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]), 10000))) + 
+  tm_dots( col = "FD",
+           shape = "CentralFeature",
+          palette = color_type,
+          title = "Facing \ndirection",
           alpha= 0.6,
              size = 0.3) +  
 tm_shape(Y_region) +
@@ -172,11 +265,45 @@ tm_shape(Y_region) +
   tm_scale_bar(position = c("left", "bottom"),
                breaks = c(0,5,10), 
                text.size = 0.75)  +
-  tm_layout(title = "B", legend.show = FALSE)
+  tm_layout(title = "B", legend.outside = TRUE)
+```
+### Combine feature type and facing direction at 1 km scale around Sitovo[3] or [44]
+[3] and [44] are point within the two major clusters in the border area
+```{r}
+table(Yam_bunkers$FacingDirection)
+table(Yam_bunkers$FD)
 
+color_type <- rainbow(length(unique(Yam_bunkers$FD)))
+library(tmap)
+tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[44,]), 1000))) + 
+  tm_dots( col = "FD",
+           shape = "CentralFeature",
+          palette = color_type,
+          title = "Facing \ndirection",
+          alpha= 0.6,
+             size = 0.3) +  
+tm_shape(Y_region) +
+ tm_borders(col = "grey",
+              lwd = 2)+
+  tm_compass(type = "arrow", 
+             position = c("left", "bottom")) +
+  tm_scale_bar(position = c("left", "bottom"),
+               breaks = c(0,0.5,1), 
+               text.size = 0.75)  +
+  tm_layout(title = "B", legend.outside = FALSE)
+```
+Try facets on bearing
+```{r}
+tm_shape(Yam_bunkers) + 
+  tm_dots()+
+  tm_facets(by = "FD",free.coords = FALSE)+
+  tm_shape(Y_region) +
+ tm_borders(col = "grey",
+              lwd = 2) +
+  tm_style("cobalt")
 
 ```
-Try facets
+Try facets on types
 ```{r}
 tm_shape(Yam_bunkers) + 
   tm_dots()+
