@@ -120,33 +120,6 @@ leaflet() %>%
 
 ```
 
-### Bulgaria inset preparation
-```{r}
-BG <- getData('GADM', country = 'BG', level = 0)
-BG <- st_transform(st_as_sf(BG), 32635)
-
-#BGregion <- getData('GADM', country = 'BG', level = 2)
-plot(BG$geometry, col = "lightgrey", border = "grey"); plot(Y_region$geometry,col = "darkgrey", border= "darkgrey", add = T)
-```
-
-Prepare to print with the inset NOT READY
-```{r eval = FALSE}
-library(tmaptools)
-library(grid)
-
-# change back to the plotting mode
-#tmap_mode("plot")
-
-# pdf("figures/Figure01.pdf", width = 5)
-# PPAP
-overview2
-
-# print insets
-print(greece, vp=viewport(x= 0.17, y= 0.21, width= 0.3, height= 0.3))
-
-#dev.off()
-```
-
 
 ## Mounds in TMAPS
 Tmap differentiating Yambol mounds/features and military installations
@@ -155,8 +128,11 @@ Tmap differentiating Yambol mounds/features and military installations
 ```{r}
 library(tmap)
 # all the features throughout the region
-tm_shape(Yam_mnds, bbox = st_bbox(Y_region))+
-  tm_symbols(shape = 2, col="#666666", size = 0.01) +
+overview_mapmnds <- tm_shape(mapmnds, bbox = st_bbox(Y_region))+
+  tm_symbols(shape = 2, 
+             col="#666666", 
+             alpha = 0.5,
+             size = 0.01) +
 # regional boundary
 tm_shape(Y_region) +
  tm_borders(col = "grey", 
@@ -168,6 +144,7 @@ tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) +
   tm_symbols(shape = 25, 
              col="CentralFeature", 
              palette = "plasma", # try Set2 ,Set3, viridis or other palettes
+          #   title = "Feature type",
              size = 0.2) +  #6 and 25 are downward triangles
   tm_compass(type = "arrow", 
              position = c("right", "top")) +
@@ -176,13 +153,40 @@ tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) +
                text.size = 0.75) + 
   #tm_credits("Sobotkova 2020", position = c("right", "bottom"), size = 0.8) +
   #tm_layout(title = "Registered standing features") 
-  tm_layout(title = "A")
+  tm_layout(title = "A",
+            legend.position = c("left", "bottom"))
 
-  
-  tm_layout(main.title = "Yambol and Bulgaria",
-            legend.outside = FALSE)
+overview_yammnds <- tm_shape(Yam_mnds, bbox = st_bbox(Y_region))+
+  tm_symbols(shape = 2, 
+             col="#666666", 
+             alpha = 0.5,
+             size = 0.01) +
+# regional boundary
+tm_shape(Y_region) +
+ tm_borders(col = "grey", 
+              lwd = 2)+
+# military installations
+tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) + 
+  # tm_polygons(col="cornsilk2", border.alpha = 0)+
+  # tm_shape(features) + 
+  tm_symbols(shape = 25, 
+             col="CentralFeature", 
+             palette = "plasma", # try Set2 ,Set3, viridis or other palettes
+          #   title = "Feature type",
+             size = 0.2) +  #6 and 25 are downward triangles
+  tm_compass(type = "arrow", 
+             position = c("right", "top")) +
+  tm_scale_bar(position = c("right", "top"),
+               breaks = c(0,5,10), 
+               text.size = 0.75) + 
+  #tm_credits("Sobotkova 2020", position = c("right", "bottom"), size = 0.8) +
+  #tm_layout(title = "Registered standing features") 
+  tm_layout(title = "A",
+            legend.position = c("left", "bottom"))
+
+overview_yammnds
 ```
-### Local typology
+### Local typology - elaboration
 ```{r}
 library(tmap)
 tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]), 20000))) + 
@@ -219,6 +223,16 @@ Yam_bunkers <- Yam_bunkers %>%
 
 table(Yam_bunkers$Feature_Facing)
 ```
+### Explore palettes
+```{r}
+# You may need to install the dependency
+#install.packages("shinyjs")
+library(shinyjs)
+tmaptools::palette_explorer()
+
+```
+
+
 ### Combine feature type and facing direction at 30 km scale
 ```{r}
 table(Yam_bunkers$FacingDirection)
@@ -226,6 +240,10 @@ table(Yam_bunkers$FD)
 
 color_type <- rainbow(length(unique(Yam_bunkers$FD)))
 library(tmap)
+
+FeatureType_col<- tm_shape(Y_elev,bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]),20000)))+
+tm_raster(alpha = 0.6,
+          title = "Elevation (masl)") +
 tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]),20000))) + 
   tm_dots( col = "FD",
            shape = "CentralFeature",
@@ -235,13 +253,42 @@ tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]),2000
              size = 0.3) +  
 tm_shape(Y_region) +
  tm_borders(col = "grey",
-              lwd = 2)+
+              lwd = 3)+
   tm_compass(type = "arrow", 
              position = c("left", "top")) +
   tm_scale_bar(position = c("left", "top"),
                breaks = c(0,5,10), 
                text.size = 0.75)  +
   tm_layout(title = "B", legend.outside = TRUE)
+
+
+FeatureType_bw <- tm_shape(Y_elev,bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]),20000)))+
+tm_raster(alpha = 0.6,
+          palette = "Greys",
+          title = "Elevation (masl)") +
+tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]),20000))) + 
+  tm_dots( col = "FD",
+           shape = "CentralFeature",
+          palette = color_type,
+          title = "Facing \ndirection",
+          alpha= 0.6,
+             size = 0.3) +  
+tm_shape(Y_region) +
+ tm_borders(col = "grey",
+              lwd = 3)+
+  tm_compass(type = "arrow", 
+             position = c("left", "top")) +
+  tm_scale_bar(position = c("left", "top"),
+               breaks = c(0,5,10), 
+               text.size = 0.75)  +
+  tm_layout(title = "B", legend.outside = TRUE)
+
+FeatureType_bw
+FeatureType_col
+
+current.mode <- tmap_mode("plot")
+tmap_arrange(FeatureType_bw, FeatureType_col)
+tmap_mode(current.mode)
 ```
 ### Combine feature type and facing direction at 10 km scale
 ```{r}
@@ -275,11 +322,11 @@ table(Yam_bunkers$FD)
 
 color_type <- rainbow(length(unique(Yam_bunkers$FD)))
 library(tmap)
-tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[44,]), 1000))) + 
+tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[44,]), 1100))) + 
   tm_dots( col = "FD",
            shape = "CentralFeature",
           palette = color_type,
-          title = "Facing \ndirection",
+          title = "Facing direction",
           alpha= 0.6,
              size = 0.3) +  
 tm_shape(Y_region) +
@@ -313,5 +360,56 @@ tm_shape(Yam_bunkers) +
               lwd = 2) +
   tm_style("cobalt")
 
+```
+
+### Bulgaria inset preparation
+```{r}
+BG <- getData('GADM', country = 'BG', level = 0)
+BG <- st_transform(st_as_sf(BG), 32635)
+
+TR <- getData('GADM', country = 'TR', level = 0)
+TR <- st_transform(st_as_sf(TR), 32635)
+
+GR <- read_sf("../data/GR_bsm_admn_adm0_py_EuroGeoGraphics_2015_pp.shp")
+GR <- st_transform(GR, 32635)
+
+
+# Plot - but first create a bounding box
+box <- st_as_sfc(st_bbox(st_buffer(BG$geometry, 100000)))
+# or extent
+
+#e <- drawExtent()
+# 
+# xmin       : 71111.22 
+# xmax       : 711789.6 
+# ymin       : 4467237 
+# ymax       : 4920994 
+
+#saveRDS(e, "../data/BGextent.rds")
+
+# Plot all layers together (centered on BG)
+bg_inset <- plot(e)
+plot(BG$geometry, col = "white", border = "black", add = T); 
+plot(Y_region$geometry,col = "darkgrey", border= "darkgrey", add = T)
+plot(GR$geometry, add = T)
+plot(TR$geometry, add = T)
+```
+
+Prepare to print with the inset NOT READY
+```{r eval = FALSE}
+library(tmaptools)
+library(grid)
+
+# change back to the plotting mode
+#tmap_mode("plot")
+
+# pdf("figures/Figure01.pdf", width = 5)
+# PPAP
+overview_yammnds
+
+# print insets
+print(bg_inset, vp=viewport(x= 0, y= 0, width= 0.3, height= 0.3))
+
+#dev.off()
 ```
 
