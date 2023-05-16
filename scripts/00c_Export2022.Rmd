@@ -23,7 +23,7 @@ opts_knit$set(width=75)
 
 ## Preparing data for AKB for 2022
 
-The purpose of this script is to take all data collected during Elhovo 2022 campaign (ELhovo and Straldzha), enrich them with distance and azimuth to the nearest governing village (zemlishte) so that Todor can submit them to AKB
+The purpose of this script is to take all data collected during Elhovo 2022 campaign (Elhovo and Straldzha), enrich them with distance and azimuth to the administrative unit (often but not always the nearest governing village (zemlishte)) so that Todor can submit them to AKB
 
 ## Setup
 ```{r libraries}
@@ -56,7 +56,7 @@ mapview(mn22, zcol = 'Type')
 
 ### Distance from each mound to its "zemlishte"
 
-AKB asks for distance and azimuth to the nearest cadastral village (in "zemlishte"). The tricky part is that the cadastral villages need not be the geographically nearest places, and so we first need to establish which zemlishte territory is each mound (and join their attributes on the basis of a spatial join) in so we can calculate the distance between the 'capital' of the territory and all the mounds in the village cadastre.
+AKB asks for distance and azimuth to the assigned cadastral village (in "zemlishte"). The tricky part is that the cadastral villages need not be the geographically nearest places, and so we first need to establish which zemlishte territory each mound is within (and join their attributes on the basis of a spatial join) in so we can calculate the distance between the 'capital' of the territory and all the mounds in the village cadastre.
 
 The information about which village cadastre does a mound belong to can be derived from an intersection of the mounds and zemlishte polygons. Here we use a shortcut: spatial points output from a spatial query in ArcGIS (ElhStr_features.shp), which contains the TRAP ID of each mound and the Name and number of the zemlishte village (Name_en and EKATTE)
 We have the zemlishte village point data with Name_en and EKATTE in ElhStr_towns shapefile
@@ -142,6 +142,7 @@ write.csv(Toshko_data_extended, "../output_data/features22forToshko.csv")
 
 ## Data for Stralzha and Elhovo from 2010-2020
 Create distances to zemlishte for all features in Straldzha and Elhovo. Beware! features_aggr_27Dec.rds contains spatial duplicates so use either dd_early or dd_later variant!!!
+Early are data from 2010 campaign, whose TRAP IDs are in the AKB; dd_later variant are the revisits whose TRAP IDs are not in the AKB.
 ```{r}
 features <- readRDS("../output_data/features_dd_early_27Dec.rds")
 mun <- read_sf("../data/Yam_Municipalities.shp")
