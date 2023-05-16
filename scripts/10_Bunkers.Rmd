@@ -23,7 +23,7 @@ opts_knit$set(width=75)
 
 ## Visualize military installations on the Cold-War border
 
-Yambol region borders on Turkey and Greece and with the Tundzha River flowing through the border in a deep ravine overgrown with forests, this region represented a prime ground for birectional movement. Movement of populations is posited here since the first farming immigrants in the 6th millennium. As the arid conditions of the early HOlocene were letting up and humidity allowed for higher vegetation to spread, the first farmers settled near the Tundzha River, planting crops and building the first permanent settlements in the area. 8000 years later, this was an administrative border between two hostile worlds, carefully guarded and with restricted movement. Military forces on both sides set up observation posts and defensive locations so as to keep control over the territory. 
+Yambol region borders on Turkey and Greece and with the Tundzha River flowing through the border in a deep ravine overgrown with forests, this region represented a prime ground for birectional movement. Movement of populations is posited here since the first farming immigrants in the 6th millennium. As the arid conditions of the early Holocene were letting up and humidity allowed for higher vegetation to spread, the first farmers settled near the Tundzha River, planting crops and building the first permanent settlements in the area. 8000 years later, this was an administrative border between two hostile worlds, carefully guarded and with restricted movement. Military forces on both sides set up observation posts and defensive locations so as to keep control over the territory. 
 
 This scripts visualizes the locations of military installations recorded in place of burial mounds (symbols in Soviet topographic maps).
 
@@ -37,7 +37,7 @@ library(raster)
 ```
 
 ## Load 2009-2022 mound data and 2018 - 2022 military feature data
-```{r}
+```{r get-mil}
 getwd()
 Yam_mnds <- readRDS("../output_data/features_dd_later_27Dec.rds")
 Yam_mil <- read_csv("../output_data/MIlitaryFeatures-OR12Dec22.csv")
@@ -45,7 +45,7 @@ mapmnds <- read_sf("../data/MapMounds32635.shp")
 ```
 
 ### Explore the data a bit
-```{r}
+```{r explore-mil}
 tail(Yam_mil)
 Yam_mil <- Yam_mil[-79,]
 
@@ -64,24 +64,26 @@ Yam_mil %>%
 Y_region <- st_read("../data/YamRegion.shp")
 
 Y_elev <- raster("../output_data/large/Yelev32635.tif")
-plot(Y_elev, main = " Yambol region with burial mound distribution");plot(Yam_mnds$geometry, cex = sqrt(as.numeric(Yam_mnds$HeightMax)), add= T)
+plot(Yam_mnds$geometry, cex = sqrt(as.numeric(Yam_mnds$HeightMax)), main = " Yambol region burial mound distribution")
 ```
 ## Map mounds 
-are good for the background, but now the file contains all kinds of benchmarks. Let's filter to the sunburst, brown sun-like symbol, which in 99% cases leads to a urial mound.
+are good for the background, but now the file contains all kinds of benchmarks. Let's filter to the sunburst, brown sunburst-like symbol, which in 99% cases leads to a burial mound.
 
-```{r}
+```{r get-map-mnd}
 table(mapmnds$MpSymbl)  # 'circle' seems the best think to search on with ca 4289records
 
 mapmnds <- mapmnds %>% 
   filter(grepl("circle",MpSymbl))
 mapmnds
 Y_region
-plot(mapmnds$geometry); plot(Y_region$geometry,add = T)
+plot(mapmnds$geometry, main = "Mound symbols in Soviet maps"); plot(Y_region$geometry,border = "red",add = T)
 ```
 
 
-## Plot
-```{r}
+
+## Plot with mapview
+Mapview is great for interactive vieweing in the digital document.
+```{r plot-mil}
 Yam_bunkers <- Yam_mnds %>% 
   dplyr::filter(TRAP %in% Yam_mil$MoundID) %>% 
   full_join(Yam_mil, by = c("TRAP"="MoundID"))
@@ -94,7 +96,7 @@ levels(Yam_bunkers$CentralFeature) <- c("Bunker", "Infantry trench","Tank emplac
 
 mapview(Yam_mnds, cex = 1) + mapview(Yam_bunkers, zcol = "CentralFeature")
 ```
-## Great, let's get really plotting
+## Great, let's explore different plotting packages
 
 circle = bunkers, 19, 20, 21 - color fill
 square = trench, 7, 22
@@ -109,7 +111,7 @@ Maps:
 
 ### Yambol with an inset of BG - Leaflet
 
-```{r}
+```{r leaflet}
 library(leaflet)
 library(leafem)
 leaflet() %>% 
@@ -121,11 +123,12 @@ leaflet() %>%
 ```
 
 
-## Mounds in TMAPS
-Tmap differentiating Yambol mounds/features and military installations
+## Mounds in tmaps
+Let's create a printable overview Tmap differentiating between Yambol mounds/features and military installations
 
-### Overview
-```{r}
+
+## Overview
+```{r tmap-mil}
 library(tmap)
 # all the features throughout the region
 overview_mapmnds <- tm_shape(mapmnds, bbox = st_bbox(Y_region))+
@@ -186,8 +189,11 @@ tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) +
 
 overview_yammnds
 ```
-### Local typology - elaboration
-```{r}
+
+
+## Military feature typology - detailed views
+We need maps zooming in to differentiate the different locations of vehicle emplacements versus bunkers/observation towers etc.
+```{r tmap-detail}
 library(tmap)
 tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]), 20000))) + 
   tm_dots( shape = "CentralFeature", #6 and 26 are downward triangles
@@ -206,9 +212,13 @@ tm_shape(Y_region) +
 
 
 ```
-### Facing directions 
 
-```{r}
+
+## Facing directions 
+
+The direction the vehicle emplacements and other features are pointing can tell us about their role: offensive or defensive?
+
+```{r directions}
 table(Yam_bunkers$FacingDirection)
 Yam_bunkers <- Yam_bunkers %>% 
   #st_drop_geometry() %>% 
@@ -223,8 +233,10 @@ Yam_bunkers <- Yam_bunkers %>%
 
 table(Yam_bunkers$Feature_Facing)
 ```
-### Explore palettes
-```{r}
+
+
+### Explore tmap palettes
+```{r eval=FALSE}
 # You may need to install the dependency
 #install.packages("shinyjs")
 library(shinyjs)
@@ -233,8 +245,10 @@ tmaptools::palette_explorer()
 ```
 
 
+
 ### Combine feature type and facing direction at 30 km scale
-```{r}
+
+```{r type-direction}
 table(Yam_bunkers$FacingDirection)
 table(Yam_bunkers$FD)
 
@@ -286,17 +300,24 @@ tm_shape(Y_region) +
 FeatureType_bw
 FeatureType_col
 
+# Eventually we chose one, but let's compare side-by-side
 current.mode <- tmap_mode("plot")
 tmap_arrange(FeatureType_bw, FeatureType_col)
 tmap_mode(current.mode)
 ```
+
 ### Combine feature type and facing direction at 10 km scale
-```{r}
+
+```{r type-dir-10}
 table(Yam_bunkers$FacingDirection)
 table(Yam_bunkers$FD)
 
 color_type <- rainbow(length(unique(Yam_bunkers$FD)))
 library(tmap)
+tm_shape(Y_elev,bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]), 10000)))+
+tm_raster(alpha = 0.6,
+          palette = "Greys",
+          title = "Elevation (masl)") +
 tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]), 10000))) + 
   tm_dots( col = "FD",
            shape = "CentralFeature",
@@ -314,15 +335,23 @@ tm_shape(Y_region) +
                text.size = 0.75)  +
   tm_layout(title = "B", legend.outside = TRUE)
 ```
+
+
 ### Combine feature type and facing direction at 1 km scale around Sitovo[3] or [44]
+
 [3] and [44] are point within the two major clusters in the border area
-```{r}
+```{r type-dir-1}
 table(Yam_bunkers$FacingDirection)
 table(Yam_bunkers$FD)
 
 color_type <- rainbow(length(unique(Yam_bunkers$FD)))
 library(tmap)
-tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[44,]), 1100))) + 
+
+box <- st_bbox(st_buffer(st_geometry(Yam_bunkers[44,]), 1000))
+diff <-  (box[4]-box[2])/2
+box[2] <- box[2]+diff/2
+box[4] <- box[4]-diff/2
+tm_shape(Yam_bunkers,bbox = box) + 
   tm_dots( col = "FD",
            shape = "CentralFeature",
           palette = color_type,
@@ -337,10 +366,12 @@ tm_shape(Y_region) +
   tm_scale_bar(position = c("left", "bottom"),
                breaks = c(0,0.5,1), 
                text.size = 0.75)  +
-  tm_layout(title = "B", legend.outside = FALSE)
+  tm_layout(title = "Sitovo Area", legend.outside = TRUE)
 ```
-Try facets on bearing
-```{r}
+
+
+### Try facets on bearing - not great
+```{r direction-facet}
 tm_shape(Yam_bunkers) + 
   tm_dots()+
   tm_facets(by = "FD",free.coords = FALSE)+
@@ -350,30 +381,44 @@ tm_shape(Yam_bunkers) +
   tm_style("cobalt")
 
 ```
-Try facets on types
-```{r}
+### Try facets on types - not great either
+```{r type-facets}
 tm_shape(Yam_bunkers) + 
   tm_dots()+
   tm_facets(by = "CentralFeature",free.coords = FALSE)+
   tm_shape(Y_region) +
  tm_borders(col = "grey",
               lwd = 2) +
-  tm_style("cobalt")
+  tm_style("white")
 
 ```
 
+
 ### Bulgaria inset preparation
-```{r}
+```{r inset-prep}
+# Get admin boundaries for Bulgaria and neighbors and simplify by units of CRS (meters)
 BG <- getData('GADM', country = 'BG', level = 0)
-BG <- st_transform(st_as_sf(BG), 32635)
+BG <- st_transform(st_as_sf(BG), 32635) %>% 
+  st_simplify(dTolerance = 1000)
 
 TR <- getData('GADM', country = 'TR', level = 0)
-TR <- st_transform(st_as_sf(TR), 32635)
+TR <- st_transform(st_as_sf(TR), 32635) %>% 
+  st_simplify(dTolerance = 1000)
 
 GR <- read_sf("../data/GR_bsm_admn_adm0_py_EuroGeoGraphics_2015_pp.shp")
-GR <- st_transform(GR, 32635)
-
-
+GR <- st_transform(GR, 32635) %>% 
+  st_simplify(dTolerance = 1000)
+RO <- getData('GADM', country = 'RO', level = 0)
+RO<- st_transform(st_as_sf(RO), 32635) %>% 
+  st_simplify(dTolerance = 1000)
+SE <- getData('GADM', country = 'RS', level = 0)
+SE <- st_transform(st_as_sf(SE), 32635) %>% 
+  st_simplify(dTolerance = 1000)
+MK <- getData('GADM', country = 'MK', level = 0)
+MK <- st_transform(st_as_sf(MK), 32635) %>% 
+  st_simplify(dTolerance = 1000)
+```
+```{r quickplot}
 # Plot - but first create a bounding box
 box <- st_as_sfc(st_bbox(st_buffer(BG$geometry, 100000)))
 # or extent
@@ -385,17 +430,73 @@ box <- st_as_sfc(st_bbox(st_buffer(BG$geometry, 100000)))
 # ymin       : 4467237 
 # ymax       : 4920994 
 
-#saveRDS(e, "../data/BGextent.rds")
+#e <- readRDS("../data/BGextent.rds")
+
+
+# Convert spatial extent to spatial polygon
+
+# library(Orcs)
+# e <- ext2spy(e, crs = "EPSG:32635", as_sf= TRUE)
+
+# Save extent polygon for later retrieval
+# saveRDS(e, "../data/BGextent.rds")
+
+# Get BG wider extent
+e <- readRDS("../data/BGextent.rds")
 
 # Plot all layers together (centered on BG)
-bg_inset <- plot(e)
-plot(BG$geometry, col = "white", border = "black", add = T); 
-plot(Y_region$geometry,col = "darkgrey", border= "darkgrey", add = T)
-plot(GR$geometry, add = T)
-plot(TR$geometry, add = T)
+
+plot(e);#plot(BG$geometry, col = "white", border = "black", lwd = 2, add = T); 
+plot(BG$geometry, col = "white", border = "red", add = T); 
+plot(Y_region$geometry,col = "black", border= "black", add = T);plot(GR$geometry, add = T);
+plot(TR$geometry, add = T);plot(RO$geometry, add = T);plot(SE$geometry, add = T);plot(MK$geometry, add = T)
 ```
 
-Prepare to print with the inset NOT READY
+
+```{r inset-tmap}
+# Make a map object with a neat style
+bg_inset <- tm_shape(BG$geometry,bbox = e) + 
+  tm_polygons(col = "white",
+              border.col = "grey",
+             lty = "solid",
+             lwd = 2) + 
+  tm_shape(GR$geometry) + 
+  tm_polygons(col = "white",
+              border.col = "grey",
+             lty = "solid",
+             lwd = 2) + 
+  tm_shape(TR$geometry) + 
+ tm_polygons(col = "white",
+              border.col = "grey",
+             lty = "solid",
+             lwd = 2) + 
+  tm_shape(RO$geometry) + 
+  tm_polygons(col = "white",
+              border.col = "grey",
+             lty = "solid",
+             lwd = 2) + 
+  tm_shape(SE$geometry) + 
+ tm_polygons(col = "white",
+              border.col = "grey",
+             lty = "solid",
+             lwd = 2) + 
+  tm_shape(MK$geometry) + 
+ tm_polygons(col = "white",
+              border.col = "grey",
+             lty = "solid",
+             lwd = 2) + 
+  tm_shape(Y_region$geometry) + 
+  tm_polygons(col = "grey",
+             border.col = "grey" ,
+             lty = "solid",
+             lwd = 2) +
+   tm_layout(bg.color="lightgrey")
+
+bg_inset
+```
+
+
+Prepare to print with the inset. It prints to external file
 ```{r eval = FALSE}
 library(tmaptools)
 library(grid)
@@ -403,13 +504,13 @@ library(grid)
 # change back to the plotting mode
 #tmap_mode("plot")
 
-# pdf("figures/Figure01.pdf", width = 5)
+pdf("../figures/Figure01.pdf", width = 5)
 # PPAP
 overview_yammnds
 
 # print insets
-print(bg_inset, vp=viewport(x= 0, y= 0, width= 0.3, height= 0.3))
+print(bg_inset, vp=viewport(x= 0.17, y= 0.82, width= 0.3, height= 0.3))
 
-#dev.off()
+dev.off()
 ```
 
