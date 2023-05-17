@@ -19,7 +19,7 @@ library(tidyverse)
 We have a total of 1090 mounds, extinct and uncertain mound features in Yambol.
 ```{r load-mounds}
 # Yambol mounds
-Yam_mnds <- readRDS("../output_data/Yam_mnds.rds") # Yam_mnds.rds dataset is the most recent deduplicated from 27/12/2022
+Yam_mnds <- readRDS("../output_data/Yam_dd_mnds.rds") # Yam_mnds.rds dataset is the most recent deduplicated from 27/12/2022
 Y_region <- st_read("../data/YamRegion.shp")
 head(Yam_mnds)
 Yam_mnds %>% group_by(Type) %>% tally()
@@ -98,6 +98,35 @@ plot(BA_excavated$geometry, pch = 16, col = "red", add =T)
 
 ```
 ```{r Bulgaria-overview}
+library(leaflet)
+leaflet(st_transform(Yam_mnds,4326)) %>% 
+  addProviderTiles("Stamen.TonerBackground", group="Background") %>% 
+  addProviderTiles("Stamen.TonerLite", group = "Lite") %>% 
+  addProviderTiles("Stamen.Watercolor", group = "Watercolor") %>%
+  ## add Mounds and BA mounds
+  addCircleMarkers(color = "darkgrey", radius = 1) %>% 
+  addCircleMarkers(data = st_transform(BA_excavated,4326), color = "red", radius = 3) %>% 
+  addPolygons(data =st_transform(Y_region, 4326), color = "darkgrey") %>% 
+#data=Yam_, group="Features", color = "black",
+ #                  radius = 7,   fillOpacity = 0.75, stroke = FALSE,
+                   #clusterOptions = markerClusterOptions(),
+  #           popup = paste0("FeatureID: ", features$identifier,
+addMiniMap(
+    # tiles = providers$Esri.WorldTopoMap,
+    tiles = providers$Stamen.TonerLite,
+   # tiles = providers$Esri.OceanBasemap,
+    position = 'topright', 
+    width = 400, height = 400,
+    zoomLevelOffset = -4,
+    #centerFixed = c(),
+    toggleDisplay = TRUE) %>%
+  
+addLayersControl(
+    baseGroups = c("Lite","Watercolor","Background"),
+    options = layersControlOptions(collapsed = T)) %>% 
+  
+addScaleBar(position = c("bottomleft"), 
+            options = scaleBarOptions(maxWidth = 300, metric = TRUE,imperial = FALSE))
 
 ```
 

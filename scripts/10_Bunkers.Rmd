@@ -55,7 +55,7 @@ unique(Yam_mil$CentralFeature)
 
 Yam_mil %>% 
   group_by(CentralFeature) %>% 
-  count() %>% 
+  tally() %>% 
   arrange(desc(n))
 ```
 
