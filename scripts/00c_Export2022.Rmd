@@ -205,3 +205,45 @@ write.csv2(m310, "../output_data/features22forToshko_csv2.csv")
 ```
 
 
+
+### Export in csv and shapefile for Zenodo
+```{r}
+library(leaflet)
+# test what coordinates look like
+st_coordinates(Yam_mnds)
+
+# verify generation of lat/long
+Yam_mnds %>% 
+  st_transform(crs = 4326) %>% 
+  mutate(latitude = st_coordinates(.)[,2],
+         longitude = st_coordinates(.)[,1]) %>% 
+  st_drop_geometry() %>% 
+  leaflet() %>% 
+  addTiles()%>%   
+  addMarkers(lng = ~longitude, lat = ~latitude)
+
+# generate csv with lat/long
+Yam_mnds %>% 
+  dplyr::select(-distBG) %>% 
+  mutate(distTown=unclass(distTown)) %>% 
+  st_transform(crs = 4326) %>% 
+  mutate(latitude = st_coordinates(.)[,2],
+         longitude = st_coordinates(.)[,1]) %>% 
+  st_drop_geometry() %>% 
+  write_csv("../output_data/yam_verifiedmounds4326.csv")
+
+# generate csv with northing/easting
+Yam_mnds %>% 
+  dplyr::select(-distBG) %>% 
+  mutate(distTown=unclass(distTown)) %>% 
+  mutate(northing = st_coordinates(.)[,2],
+         easting = st_coordinates(.)[,1]) %>% 
+  st_drop_geometry() %>% 
+  write_csv("../output_data/yam_verifiedmounds32635.csv")
+
+# generate shapefile
+Yam_mnds %>% st_write("../output_data/yam_verifiedmounds32635.shp")
+test <- st_read("../output_data/yam_verifiedmounds32635.shp")
+mapview(Yam_mnds, cex = "HeightMax") + mapview(Y_region, alpha = 0.5)
+```
+
