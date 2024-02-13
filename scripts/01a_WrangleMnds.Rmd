@@ -26,31 +26,25 @@ opts_knit$set(width=75)
 
 ## Wrangling Mound data out of FAIMS data
 
-The purpose of this script is to clean up and filter the total aggregate of FAIMS data originating from the Yambol region to mostly-mound points from within the regional boundary, whose attributes are analysis-ready and whose spatial points are deduplicated.
+The purpose of this script is to clean up and filter the total aggregate of FAIMS data originating from the Yambol Province and vicinity to mostly-mound points from within the regional boundary, whose attributes are analysis-ready and whose spatial points are de-duplicated.
 
-This script uses the most recent records in case of the 18 spatial duplicates.For comparison on the stats, please use with script 01b
+This script uses the most recent records in case of the 18 spatial duplicates. For comparison of the stats in earlier points, please use with script 01b
 
 ## Setup
 ```{r libraries}
 library(tidyverse)
 library(sf)
+library(mapview)
 ```
 
 
 ## Load data
 ```{r -load-aggr-data}
-features <- read_rds("../output_data/features_dd_later_27Dec.rds")
-
+#features <- read_rds("../output_data/20221227/features_dd_later_27Dec.rds") # 2022
+features <- readRDS("../../MoundMerging2023/output_data/features_dd_later.rds") # 2023
 str(features)
 
-# write to shapefile
-#colnames(features)
-#st_write(features, "../output_data/features_dd_later_27Dec.shp")
-
-# repeat for earlier features (for spatial duplicates)
-# features_early <- read_rds("../output_data/features_dd_early_27Dec.rds")
-#st_write(features_early, "../output_data/features_dd_early_27Dec.shp")
-
+which(is.na(features$Date))
 ```
 
 ## Validation I: Check how many of the features are actually mounds
@@ -61,8 +55,15 @@ features %>%
   group_by(Type) %>% 
   tally()
 ```
+```{r source}
+features %>% 
+  group_by(Source) %>% 
+  tally()
+```
+
+
 ```{r type-check}
-# Verify that "Other" category is not legacy-data verificaiton, because those should be mounds/extinct mounds if the symbol was a brown sunburst
+# Verify that "Other" category is not legacy-data verification, because those should be mounds/extinct mounds if the symbol was a brown sunburst. The only exception is if they are bunkers/military installations, where their origin is profoundly uncertain (a mound made into a bunker or a bunker masked as a 'mound'?)
 
 features %>% 
   filter(Type == "Other") %>% 
@@ -70,7 +71,14 @@ features %>%
   tally()
 
 ```
-In the tally of "Other" types, there are 34 Legacy verification features and 41 Survey features. While the latter are expected, the 34 LV features require follow up. Many of the LGV features originate not from sunbursts but other map markers, such as raysed squares and triangles, which were demonstrated to lead to mounds less reliably. 
+In the tally of "Other" types, there are 30 Legacy verification features and 41 Survey features. While the latter are expected, the 30 LV features require follow up. Many of the LGV features originate not from sunbursts but other map markers, such as rayed squares and triangles, which were demonstrated to lead to mounds less reliably. 
+
+```{r}
+features %>% 
+  st_drop_geometry() %>% 
+  filter(Type == "Other" & Source == "Legacy verification")
+```
+
 
 ## Validation II: Check for duplicates (similar attributes)
 Spatial duplication is addressed in 00b_SpatialDeduplication.Rmd
@@ -102,6 +110,12 @@ features <- features %>%
 features %>% 
   group_by(Type) %>% 
   tally()
+
+features %>%
+  filter(grepl("Mound", Type)) %>% 
+  mapview(zcol = "Condition")  
+  
+
 ```
 ### Quick visual
 
@@ -110,11 +124,11 @@ library(mapview)
 mapview(features, zcol = "Type")
 ```
 
-### Subset to mounds only
+## Subset to mounds only
 
 ```{r filter-mounds}
 mnds <- features %>% 
-  dplyr::filter(Type == "Burial Mound" | Type == "Extinct Burial Mound" | Type == "Uncertain Mound")
+  dplyr::filter(Type == "Burial Mound" | Type == "Extinct Burial Mound" | Type == "Uncertain Feature")
 
 str(mnds)
 ```
@@ -132,7 +146,7 @@ plot(Yam_mnds["Condition"])
 now that all looks reasonably well, let's export the data. These are features inside the Yambol Province.
 
 ```{r export-mnds}
-write_rds(Yam_mnds, "../output_data/Yam_dd_mnds.rds")
+write_rds(Yam_mnds, "../output_data/Yam_later_mnds.rds") # Type uncertainty removed!
 #st_write(Yam_mnds,"../output_data/Yam_mnds.shp", append = FALSE )
 ```
 

@@ -35,6 +35,9 @@ library(mapview)
 
 ```{r load-features}
 features <- read_rds("../output_data/features_aggr_27Dec.rds")
+features %>% 
+  group_by(Type) %>% 
+  tally()
 ```
 
 

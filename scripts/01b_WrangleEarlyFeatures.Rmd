@@ -34,12 +34,13 @@ This script uses the early records in case of the 18 spatial duplicates. For com
 ```{r libraries}
 library(tidyverse)
 library(sf)
+library(mapview)
 ```
 
 
 ## Load data
 ```{r -load-aggr-data}
-features <- read_rds("../output_data/features_dd_early_27Dec.rds")
+features <- readRDS("../../MoundMerging2023/output_data/features_dd_later.rds") # 2023
 
 str(features)
 
@@ -82,6 +83,8 @@ features$TRAP[duplicated(features$TRAP)]
 ## Validation III: Clean up condition, height and other attribute
 
 ```{r clean-up}
+unique(features$Condition)
+
 features <- features %>%
   #st_drop_geometry() %>%  
   dplyr::mutate(Condition = str_extract(Condition, "\\d")) %>%
@@ -89,6 +92,9 @@ features <- features %>%
                                Condition == 6 ~ "5",
                                Condition != 0 ~ Condition)) %>% 
   dplyr::mutate(Condition = as.factor(Condition)) %>% 
+  dplyr::mutate(TypeCertainty = case_when(
+    grepl("\\?",Type) ~ "Uncertain",
+    !grepl("\\?",Type) ~ "Certain")) %>% 
   dplyr::mutate(Type= gsub("\\?","",Type)) %>% 
   dplyr::mutate(HeightMax = as.numeric(HeightMax)) %>% 
   dplyr::mutate(DiameterMax = as.numeric(DiameterMax)) 
@@ -104,23 +110,130 @@ features %>%
   group_by(Type) %>% 
   tally()
 ```
+
+## Clip Features by Yambol boundary
+
+```{r}
+Y_region <- st_read("../data/YamRegion.shp")
+Y_features <- st_intersection(features, Y_region$geometry)
+Y_features
+```
+Within Yambol we documented 1243 features. 
+
+## Source
+
+### all features
+```{r source-all-features}
+features %>% 
+  group_by(Source) %>% 
+  tally()
+```
+
+In terms of feature source, 1046 map features from the entire visited area (Yambol and surrounding) were visited, and 397 moundlike features were discovered along the route. 
+
+Let's see what the stats are for Yambol Province.
+
+### Source of Features within Yambol
+Were the features found thanks to topo maps or via survey?
+
+```{r source-Yam}
+Y_features %>% 
+  group_by(Source) %>% 
+  tally()
+```
+
+In Yambol Province, we have documented 1243 features, 847 originated from map symbol and the rest were encountered en route by means survey (373), local informants and serendipity.
+
+
+```{r type-yambol}
+Y_features %>% 
+  group_by(Type, TypeCertainty) %>% 
+  tally()
+
+Y_features %>% 
+  filter(grepl("Mound", Type))
+```
+
+## Explore Uncertain Features - move to MoundMerging2023 once finished!
+This is to relabel features if they do not conform to the premises of the project (ie. are in map, but marked not as extinct mounds)
+```{r}
+Y_features %>% 
+  filter(TypeCertainty == "Uncertain",  Source == "Legacy verification") %>% 
+  filter(grepl("Mound|Uncertain", Type)) %>%
+  #group_by(Type) %>% tally
+  st_drop_geometry()
+  
+# Export uncertain Burial Mounds from LGV as shp to check in GEarth and images
+Y_features %>% 
+  filter(TypeCertainty == "Uncertain",  Source == "Legacy verification") %>% 
+  filter(grepl("Mound|Uncertain", Type)) %>%
+  select(-TopoID) %>% 
+  st_write("../output_data/LGVMoundsUncertain.shp", append=F)
+
+```
+9516 : photo - typical feature of BG fields, a small-mound sized cluster of stones hiding in a scrub in a slight terrain wave,  could be natural geology, a field stone cluster, or an extinct mound
+8337 : terrain wave, possible mound, in GE satellite image a round light soil mark 80m to SW from GPS point 
+8388 : terrain wave near a serious mound 8387, nothing in GE satellite image now, but soilmark in 2009
+9645 : water station / extinct mound? next to a road
+8427 : moundlike feature (round, conical pile) with concrete construction
+9838 : ploughed up mound (definitely)l light soil marks in GE >> CHANGE UNCERTAIN TO CERTAIN
+9847 : pile in a forest; no visibility; should be UNCERTAIN
+9852 : pretty clear scrub covered mound! l    ozenge in GE >> CHANGE UNCERTAIN TO CERTAIN
+8764 : very uncertain lozenge between two mounds: natural or cultural >> should be SURVEY (instead of 8763) AND UNCERTAIN EXTINCT mound
+8766 : massive mound, why the doubt? >> CHANGE UNCERTAIN TO CERTAIN
+8770 : two concentric circles, negative and positive: strange, something else?
+8772 : smallish mound like protrusion > marked as extinct and should stay so
+8775 : hardly anything >> maybe eliminate or keep as extinct
+8648 : disturbed area >> should perhaps be eliminated
+9883 : flat nothing in photo or GE; lots of pottery >> CHANGE TO SCATTER
+9910 : very low feature in photo, light soilmark in GE, next to a solid 9909 >> CHANGE TO EXTINCT
+9911 : looks like nothing, check Topo map, might need flagging at EXTINCT or deletion
+
+
+
 ### Quick visual
 
 ```{r}
 library(mapview)
-mapview(features, zcol = "Type")
+mapview(Y_features, zcol = "Type")
 ```
+### Export Yambol Features
+```{r}
+st_write(Y_features, "../output_data/features_dd_Yam.geojson")
+
+Y_features %>% 
+  mutate(latitude = st_coordinates(.)[,2],
+               longitude = st_coordinates(.)[,1]) %>% 
+  st_drop_geometry() %>% glimpse()
+
+```
+
+### Check how many LGV and survey features have 0 height
+
+```{r}
+Y_features %>% 
+  filter(grepl("Mound|Uncertain", Type)) %>% 
+  filter(HeightMax < 0.2) %>% 
+  group_by(Source, Type) %>% 
+  tally()
+
+Y_features %>% 
+  st_drop_geometry() %>% 
+  filter(Type == "Burial Mound") %>% 
+  filter(HeightMax <0.2)
+```
+
 
 ### Subset to mounds only
 
 ```{r filter-mounds}
 mnds <- features %>% 
-  dplyr::filter(Type == "Burial Mound" | Type == "Extinct Burial Mound" | Type == "Uncertain Mound")
+  dplyr::filter(Type == "Burial Mound" | Type == "Extinct Burial Mound")
 
 str(mnds)
 ```
 
-## Clip data by Yambol region
+## Clip Mounds by Yambol region
 ```{r yambol-mnds}
 Y_region <- st_read("../data/YamRegion.shp")
 Yam_mnds <- st_intersection(mnds, Y_region$geometry)
@@ -135,6 +248,49 @@ now that all looks reasonably well, let's export the data. These are features in
 ```{r export-mnds}
 write_rds(Yam_mnds, "../output_data/Yam_dd_early_mnds.rds")
 #st_write(Yam_mnds,"../output_data/Yam_mnds.shp", append = FALSE )
+
+```
+
+
+
+## AKB mound joining
+```{r}
+# load the 1058 records of AKB numbers
+AKB <- read_csv("../data/AKBmounds.csv")
+
+# clean up the AKB Number column to discard type notes
+AKB$`AKB №` <- as.numeric(AKB$`AKB №`)
+
+# this coerces 349 records to NA
+sum(is.na(AKB$`AKB №`))
+
+# leaving 709 AKB records
+AKB %>% 
+  filter(`AKB №`> 0) %>% 
+  filter(!is.na(Excavated)) # 12 mounds have been excavated
+```
+## Clean AKB up
+```{r}
+AKB <- AKB %>% 
+  rename(SeasonNotes = Season, AKB = `AKB №`, TRAP = `TRAP №`)
+```
+
+## Join up
+```{r}
+Y_features <- Y_features %>% 
+  left_join(AKB, by = c('TRAP'))
+
+colnames(Y_features)
+
+```
+## CHeck how many are excavated
+```{r}
+Y_features %>% 
+  filter(AKB > 0) %>% 
+  filter(!is.na(Excavated)) # 11
+
+Y_features %>% 
+  filter(AKB > 0)  # 698 features have AKB >> duplicates must be here
 
 ```
 

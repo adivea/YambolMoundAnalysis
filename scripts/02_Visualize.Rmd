@@ -7,39 +7,126 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(sf)
 ```
-
 ## Load 2009-2022 mound data
-We have a total of 1090 mounds, extinct and uncertain mound features in Yambol.
+
+In 2022, we had a total of 1090 mounds, extinct and uncertain mound features in Yambol.
+In 2023, after extra cleaning
 ```{r load-mounds}
 # Yambol mounds
-features <- readRDS("../output_data/features_dd_later_27Dec.rds") # dataset is most recent from 27/12/2022 and deduplicated
+features <- readRDS("../output_data/20221227/features_dd_later_27Dec.rds") # dataset is most recent from 27/12/2022 and deduplicated
+features <- readRDS("../../MoundMerging2023/output_data/master_sp.rds") # 
 Y_region <- st_read("../data/YamRegion.shp")
 head(features)
 features %>% group_by(Type) %>% tally()
 
 # Clipped deduplicated 1073 mound data within the borders of Yambol
-Yam_mnds <- read_rds("../output_data/Yam_dd_mnds.rds")
+Yam_mnds <- read_rds("../../MoundMerging2023/output_data/mounds_dd_Yam.rds")
+Yam_mnds %>% 
+  group_by(Type) %>% 
+  tally()
 ```
+## Explore Type
+
+```{r}
+Yam_mnds %>% 
+  filter(grepl("Uncertain", Type)) %>% 
+  group_by(Source) %>% tally()
+```
+
+## Touch up Type 
+
+```{r inspect-type}
+unique(Yam_mnds$Condition)
+class(Yam_mnds$DiameterMax)
+
+# Check the uncertain mounds: some are LGV (where the ground situation is equivocal) or survey mounds, which are small...
+Yam_mnds %>% 
+  filter(grepl("Mound\\?", Type)) %>% 
+  filter(Source == "Legacy verification")
+   group_by(Source) %>% 
+  tally()
+
+```
+
+```{r enhance-type}
+# Benefit of the doubt for the uncertain ones
+Yam_mnds_unc <- Yam_mnds %>%
+  #st_drop_geometry() %>%  
+  dplyr::mutate(Condition = str_extract(Condition, "\\d")) %>%
+  dplyr::mutate(Condition = case_when(Condition == 0 ~ "NA",
+                               Condition == 6 ~ "5",
+                               Condition != 0 ~ Condition)) %>% 
+  dplyr::mutate(Condition = as.factor(Condition)) %>% 
+  dplyr::mutate(Type= gsub("\\?","",Type)) 
+
+```
+
+```{r separate-cert-relabel}
+# Another approach is to relabel.. but it seems excessive!
+Yam_mnds %>%
+  #st_drop_geometry() %>%  
+  dplyr::mutate(Condition = str_extract(Condition, "\\d")) %>%
+  dplyr::mutate(Condition = case_when(Condition == 0 ~ "NA",
+                               Condition == 6 ~ "5",
+                               Condition != 0 ~ Condition)) %>% 
+  dplyr::mutate(Condition = as.factor(Condition)) %>% 
+  # dplyr::mutate(Type= case_when(Type == "Burial Mound?" ~ "Uncertain Feature",
+  #                               Type == "Extinct Burial Mound?" ~ "Uncertain Feature",
+  #                               Type == "Uncertain Feature?" ~ "Uncertain Feature"))
+  dplyr::mutate(TypeCert= case_when(grepl("\\?", Type)~ "Uncertain",
+                                  !grepl("\\?", Type) ~ "Certain")) %>% 
+                  group_by(Type, TypeCert) %>% tally() # check it works glimpse()
+```
+
+
+```{r remove-uncertain}
+# Remove all uncertainty from data
+Yam_mnds_cert <- Yam_mnds %>%
+  #st_drop_geometry() %>%  
+  dplyr::mutate(Condition = str_extract(Condition, "\\d")) %>%
+  dplyr::mutate(Condition = case_when(Condition == 0 ~ "NA",
+                               Condition == 6 ~ "5",
+                               Condition != 0 ~ Condition)) %>% 
+  dplyr::mutate(Condition = as.factor(Condition)) %>% 
+  dplyr::filter(!grepl("\\?",Type))  # %>% group_by(Type) %>% tally() # check it works
+```
+
+```{r}
+# Eliminate ? but keep it in another column
+Yam_mnds <- Yam_mnds %>%
+  #st_drop_geometry() %>%  
+  dplyr::mutate(Condition = str_extract(Condition, "\\d")) %>%
+  dplyr::mutate(Condition = case_when(Condition == 0 ~ "NA",
+                               Condition == 6 ~ "5",
+                               Condition != 0 ~ Condition)) %>% 
+  dplyr::mutate(Condition = as.factor(Condition)) %>% 
+  dplyr::mutate(TypeCert= case_when(grepl("\\?", Type)~ "Uncertain",
+                                  !grepl("\\?", Type) ~ "Certain")) %>% 
+  dplyr::mutate(Type= gsub("\\?","",Type))   # %>% group_by(Type) %>% tally() # check it works
+glimpse(Yam_mnds)
+```
+
 ## Mound sizes
 ```{r mound-size}
 Yam_mnds %>%
   group_by(Type) %>%
   summarize(Max = max(HeightMax, na.rm = T), 
-            Mean = mean(HeightMax, na.rm = T),
+            Mean = round(mean(HeightMax, na.rm = T),1),
             Median = median(HeightMax, na.rm = T))
 
 ```
 ## Mound size boxplots
 ```{r size-boxplot}
-
 Yam_mnds %>%
     ggplot(aes(x = Type, y = HeightMax)) +
     geom_violin()+
-    geom_jitter(alpha = 0.3,
-    		color = "tomato",
+    geom_jitter(aes(alpha = 0.3,
+    		color = TypeCert,
     		width = 0.2,
-    		height = 0.2) +
+    		height = 0.2)) +
    theme_bw() +
   labs(x = "Mound type",
        y = "Maximum recorded height",

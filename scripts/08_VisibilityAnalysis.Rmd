@@ -9,8 +9,10 @@ This script serves to elaborate the calculation of mutual intervisibility (clear
 
 The script basically works, calculating linestrings, intervisibility between Yam_mounds and generating maps
 
-You need: 
+The proof of concept is done on BA mounds and to replicate it you might need: 
 - to run 09 BA mounds to have the necessary libraries and digital objects
+
+THe code should be expandable
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
                       warning = FALSE)
@@ -24,14 +26,20 @@ library(tidyverse)
 
 Y_elev <- raster("../output_data/large/Yelev32635.tif")
 # Yambol mounds
-Yam_mnds <- readRDS("../output_data/Yam_mnds.rds")
-head(Yam_mnds)
+Yam_mnds <- readRDS("../output_data/Yam_dd_mnds.rds") # 1073 features
+Yam_mnds
 Yam_mnds %>% 
   group_by(Type) %>% 
   tally()
 ```
-# Bronze Age mounds from Toshko
 
+
+# Intervisibility of Bronze Age mounds in Yambol
+In this proof of concept we explore the visibility of BA mounds from other BA mounds, for simplicity's sake. 
+
+BA mounds comprise surveyed and excavated mounds ('bronze') and excavated prior to survey ('extrasf') supplied by Toshko.
+
+Excavated prior:
 Drazhevo - Height: 2.7 m; Diameter: 37.0 m; Land: pasture on the rocky area
 Straldzha - Height: 4.0 m; Diameter: 50.0 m; Land: wines and pasture
 Popovo - Height: 6.8 m; Diameter: 48.0 m; Land: wines and pasture
@@ -78,9 +86,10 @@ BApoints <- st_as_sf(BApoints, coords = c("X", "Y"), crs = 32635)
 
 ## Linestring creation
 
-Let's first see if we an create linestrings to later signal which mounds can *see* each other.
+Let's first see if we an create linestrings to later signal which mounds can *see* each other. To do that we need two columns of coordinates: the origin and the target. Here we explore the visibility of all BA mound from BA mound (from Toshko)
 ```{r linestring}
 # Test linestring creation from one origin and multiple target points. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
+
 coords <- as.matrix(cbind(as.data.frame(st_coordinates(extrasf$geometry[2])),
                 as.data.frame(st_coordinates(BApoints$geometry))))
 
@@ -113,7 +122,7 @@ cansee <- function(r, xy1, xy2, h1=0, h2=0){
 ### can xy1 see xy2 on DEM r?
 ### Y_elev is a DEM in same x,y, z units
 ### xy1 and xy2 are 2-length vectors of x,y coords
-### h1 and h2 are extra height offsets
+### h1 and h2 are extra height offsets (ie. mound heights)
 ###  (eg top of mast, observer on a ladder etc)
     xyz = rasterprofile(r, xy1, xy2)
     np = nrow(xyz)-1
@@ -149,6 +158,7 @@ rasterprofile <- function(r, xy1, xy2){
 ```
 Let's test these with real data (BA points 8346, 8007 and Drazhevo)
 
+
 ```{r rasterprofile}
 BApoints[c(3,6,10),]
 m8007 <- c(st_coordinates(BApoints)[3,],h= BApoints$HeightMax[3])
@@ -160,6 +170,62 @@ Y_elev
 test_see <- cansee(Y_elev, m8007, m8346, h1 = m8007[3]  , h2 = m8346[3])
 test_see
 
+```
+## Automating the visibility
+```{r}
+# origin point coordinates and height
+Yam_mnds %>% 
+  group_by(Type) %>% tally()
+
+Yam_mnds$HeightMax[is.na(Yam_mnds$HeightMax)] <- 0
+
+
+origin <- cbind(st_coordinates(Yam_mnds), h = Yam_mnds$HeightMax)
+target <- origin 
+
+class(origin)
+
+result_table <- NULL
+for (i in 1:nrow(origin)){
+  for (e in 1:nrow(target)){
+      result = cansee(Y_elev, origin[i,1:2], target[e,1:2], h1 = origin[i,3], h2 = target[e,3])
+    result_row <- cbind(i,e, result) 
+    result_table <- rbind(result_table, result_row)
+  }
+}
+head(result_table)
+tail(result_table)
+saveRDS(result_table, "../output_data/Yam_mnd_intervis250k.rds")
+
+```
+
+Finishing the 1,000,000 calculations takes a while! (1 hr so far at 17.18 on Thursday night).
+OK, some 24 hours later (Friday afternoon), 241 mounds (*1000) were completed. Clearly the tasks takes 4 days.
+
+```{r}
+# Check the results of the initial intervisibility run
+result_table <- readRDS("../output_data/Yam_mnd_intervis250k.rds")
+result_table <- as.tibble(result_table)
+
+# 10 most commanding mounds! i is the index, n is the number of visible features from it
+result_table %>% 
+  group_by(i) %>% 
+  tally(result) %>% 
+  arrange(desc(n))
+# maxima were i = 241, and e = 780 
+result_table %>% 
+  filter(i == 240) %>% 
+  arrange(desc(e))
+
+
+# calculations per hr
+250000/3600
+
+```
+### Link results to actual mound locations
+
+### Visualizing the terrain profile
+```{r}
 # Create a terrain profile and plot it to check potential intervisibility
 testprofile <- rasterprofile(Y_elev,  m8007, m8346)
 testprofile <- rasterprofile(Y_elev,  m8007, mDrazh)
@@ -176,9 +242,10 @@ y = testprofile$z[c(1,nrow(testprofile))]
 plot(testprofile$z, type = "l", main = "Terrain profile between mounds 8346 and Drazhevo", 
      ylab = "Elevation(m)", xlab = "Mound distance (*30m)"); 
 lines(x,y, col = "red", lwd = 2)
+
 ```
 
-None of these mounds can see each other, because the one on top of the Zaichi Vrah is obscured by the hill and not aimed at the mounds to the SE. 
+None of these mounds (Drazhevo and 8346) can see each other, because the one on top of the Zaichi Vrah is obscured by the hill and not aimed at the mounds to the SE. 
 Let's test the intervisibility between these three and other mounds in the surroundings from the Yambol Mounds dataset. We will use the viewTo() function and the starting coordinates of the three mounds.
 
 ```{r view-to-8007, warning=FALSE}
