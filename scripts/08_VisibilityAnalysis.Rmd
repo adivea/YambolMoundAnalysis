@@ -33,20 +33,8 @@ Yam_mnds %>%
   tally()
 ```
 
-
-# Intervisibility of Bronze Age mounds in Yambol
-In this proof of concept we explore the visibility of BA mounds from other BA mounds, for simplicity's sake. 
-
-BA mounds comprise surveyed and excavated mounds ('bronze') and excavated prior to survey ('extrasf') supplied by Toshko.
-
-Excavated prior:
-Drazhevo - Height: 2.7 m; Diameter: 37.0 m; Land: pasture on the rocky area
-Straldzha - Height: 4.0 m; Diameter: 50.0 m; Land: wines and pasture
-Popovo - Height: 6.8 m; Diameter: 48.0 m; Land: wines and pasture
-
-8345 Mogila village - Height: 3.2 m; Diameter: 37.6 m; Land: pasture on the rocky area 
-
-
+## BA mound subgroup
+to keep things simple
 ```{r BA-faims, include = FALSE}
 # Filter out the BA mounds from the FAIMS data
 bronze <- c(6009,8007,6010,8345,8346,8357, 8502, 8351, 9257)
@@ -59,39 +47,15 @@ BA$HeightMax[5] <- 3.2
 
 ```
 
-```{r BA-Todor, include = FALSE}
-# Add the few mounds excavated before TRAP coverage >> these should be pulled out of the AOR dataset to get the Height, Diameter and other dimensions..
-extras <- data.frame(place = c("Drazhevo", 
-                           "Straldzha",
-                           "Popovo"),
-                 Easting=c(455442,479522,479391),
-                 Northing=c(4710935,4715730,4668279),
-                 HeightMax=c(2.7,4.0,6.8),
-                 DiameterMax = c(37,50,48),
-                 LU_Around = c("Pasture","Perennial","Perennial"),
-                 Type = c("Burial Mound","Burial Mound","Burial Mound"),
-                 Source = c("Excavation","Excavation","Excavation"))
-extrasf <- st_as_sf(extras, coords =c("Easting", "Northing"), crs = 32635)
-
-```
-
-```{r BA-combo, include = FALSE}
-# Combine both BA datasets and spatialize
-library(plyr)
-BApoints <- rbind.fill(BA, extrasf)
-BAcoords <- rbind(st_coordinates(BA) ,st_coordinates(extrasf))
-BApoints <- cbind(BApoints, BAcoords)
-BApoints <- st_as_sf(BApoints, coords = c("X", "Y"), crs = 32635)
-```
 
 ## Linestring creation
 
-Let's first see if we an create linestrings to later signal which mounds can *see* each other. To do that we need two columns of coordinates: the origin and the target. Here we explore the visibility of all BA mound from BA mound (from Toshko)
+Let's first see if we an create linestrings to later signal which mounds can *see* each other. To do that we need two columns of coordinates: the origin and the target. Here we explore the intervisibility of the seven BA mounds
 ```{r linestring}
 # Test linestring creation from one origin and multiple target points. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
 
-coords <- as.matrix(cbind(as.data.frame(st_coordinates(extrasf$geometry[2])),
-                as.data.frame(st_coordinates(BApoints$geometry))))
+coords <- as.matrix(cbind(as.data.frame(st_coordinates(BA$geometry[2])),
+                as.data.frame(st_coordinates(BA$geometry))))
 
 lines_sm <-  st_sfc(
      lapply(1:nrow(coords),
@@ -99,11 +63,11 @@ lines_sm <-  st_sfc(
              st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
            }))
 
-st_crs(lines_sm) <- st_crs(BApoints)
+st_crs(lines_sm) <- st_crs(BA)
 
 
 library(mapview)
-mapview(lines_sm)+mapview(BApoints)
+mapview(lines_sm)+mapview(BA)
 
 # https://stackoverflow.com/questions/65498300/how-to-efficiently-create-linestrings-from-points
 # https://stackoverflow.com/questions/58150279/plotting-lines-between-two-sf-point-features-in-r
@@ -132,8 +96,6 @@ cansee <- function(r, xy1, xy2, h1=0, h2=0){
     return(!any(hpath < xyz$z))
 }
 
-
-
 viewTo <- function(r, xy, xy2, h1=0, h2=0, progress="none"){
     ## xy2 is a matrix of x,y coords (not a data frame)
     require(dplyr)
@@ -156,23 +118,26 @@ rasterprofile <- function(r, xy1, xy2){
     data.frame(x=xc, y=yc, z=r[cellFromXY(r,cbind(xc,yc))])
 }
 ```
-Let's test these with real data (BA points 8346, 8007 and Drazhevo)
+Let's test these three functions with real data (BA points)
 
 
 ```{r rasterprofile}
-BApoints[c(3,6,10),]
-m8007 <- c(st_coordinates(BApoints)[3,],h= BApoints$HeightMax[3])
-m8346 <- c(st_coordinates(BApoints)[6,],h= BApoints$HeightMax[6])
-mDrazh<- c(st_coordinates(BApoints)[10,],h= BApoints$HeightMax[10])
-
+mapview(BA[c(3,6,5),])
+m8007 <- c(st_coordinates(BA)[3,],h= BA$HeightMax[3])
+m8346 <- c(st_coordinates(BA)[6,],h= BA$HeightMax[6])
+m8502<- c(st_coordinates(BA)[7,],h= BA$HeightMax[7])
+m8345 <- c(st_coordinates(BA)[5,],h= BA$HeightMax[5])
 Y_elev
 
-test_see <- cansee(Y_elev, m8007, m8346, h1 = m8007[3]  , h2 = m8346[3])
+test_see <- cansee(Y_elev, m8345, m8346, h1 = m8345[3]  , h2 = m8346[3])
 test_see
 
 ```
-## Automating the visibility
-```{r}
+
+## Automating the visibility calculation
+
+### prep the data for cansee() function
+```{r auto-prep}
 # origin point coordinates and height
 Yam_mnds %>% 
   group_by(Type) %>% tally()
@@ -184,15 +149,24 @@ origin <- cbind(st_coordinates(Yam_mnds), h = Yam_mnds$HeightMax)
 target <- origin 
 
 class(origin)
+```
 
+### slow automation via a for-loop
+```{r loop}
+# LOOP: works but takes days to finish, reduce the i and e if running a test!
 result_table <- NULL
 for (i in 1:nrow(origin)){
-  for (e in 1:nrow(target)){
+  for (e in 1:nrow(target)){print(e)
       result = cansee(Y_elev, origin[i,1:2], target[e,1:2], h1 = origin[i,3], h2 = target[e,3])
     result_row <- cbind(i,e, result) 
     result_table <- rbind(result_table, result_row)
   }
+
 }
+
+# I stopped the process after 24 hours when it reached ~250,000 calculations
+# maxima were i = 241, and e = 780 ; restart the calculations there
+
 head(result_table)
 tail(result_table)
 saveRDS(result_table, "../output_data/Yam_mnd_intervis250k.rds")
@@ -200,29 +174,144 @@ saveRDS(result_table, "../output_data/Yam_mnd_intervis250k.rds")
 ```
 
 Finishing the 1,000,000 calculations takes a while! (1 hr so far at 17.18 on Thursday night).
-OK, some 24 hours later (Friday afternoon), 241 mounds (*1000) were completed. Clearly the tasks takes 4 days.
+OK, some 24 hours later (Friday afternoon), 241 mounds (*1000) were completed. Clearly the tasks takes 4 days unless we successfully ...
 
-```{r}
+### Parallelize!
+```{r auto-foreach}
+# install.packages("doParallel")
+# install.packages("foreach")
+library(foreach)
+library(doParallel)
+library(data.table)
+
+detectCores() # 22 as some are multi-threaded
+detectCores(logical = FALSE) # 16 real ones
+
+cl <- makeCluster(12) # keep 4 cores so screensaver can run on W11
+registerDoParallel(cl)
+
+# Start experiment
+origin <- cbind(st_coordinates(Yam_mnds), h = Yam_mnds$HeightMax)
+target <- origin 
+
+# nesting both i and e with foreach 
+ie_table <- foreach (i= 1:nrow(origin), .combine = 'rbind',.packages = c("data.table", "raster")) %do% {
+  print(i)
+  foreach( e= 1:nrow(target), .combine = 'rbind',.packages = c("data.table", "raster")) %dopar% {
+  print(e)
+  result = cansee(Y_elev, origin[i,1:2], target[e,1:2], h1 = origin[i,3], h2 = target[e,3])
+  result_row <- c(i,e, result)
+  }
+ # result_table <- rbind(result_table, result_row)
+}
+
+dim(ie_table) # 1,151,329 calculations take ~12 hours (10x less than for loop) 
+saveRDS(ie_table, "../output_data/Yam_mnds_intervis.rds")
+```
+### Compare efficiency between for-loop and foreach
+Let's run 4 * 4 (16) or/and 14*14 (~196) calculations using both a for loop and foreach to compare their relative speeds.
+
+```{r compare-loop-foreach}
+loop_table <- NULL
+runtime1 <- system.time(
+for (i in 1060:nrow(origin)){
+  print(i)
+  for (e in 1060:nrow(target)) {
+    print(e)
+    result = cansee(Y_elev, origin[i,1:2], target[e,1:2], h1 = origin[i,3], h2 = target[e,3])
+    result_row <- cbind(i,e, result)
+   loop_table <- rbind(loop_table, result_row)
+    }
+}
+)
+
+runtime2 <- system.time(
+parallel_table <- foreach (i= 1060:nrow(origin), .combine = 'rbind',.packages = c("data.table", "raster")) %do% {
+  print(i)
+  foreach( e= 1060:nrow(target), .combine = 'rbind',.packages = c("data.table", "raster")) %dopar% {
+  print(e)
+  result = cansee(Y_elev, origin[i,1:2], target[e,1:2], h1 = origin[i,3], h2 = target[e,3])
+  result_row <- c(i,e, result)
+  }
+}
+)
+
+dim(parallel_table)
+dim(loop_table)
+runtime1
+runtime2
+```
+
+At 16 iterations (16 results), the foreach 'elapsed' time is half of the loop and 'user' time is 5x less.
+> runtime1
+   user  system elapsed 
+   0.06    0.01    0.23 
+> runtime2
+   user  system elapsed 
+   0.01    0.00    0.13 
+   
+At 196 iterations (196 results), the foreach (with 12 cores) 'elapsed' time is 1/3 of the for loop and 'user' time is 50x less    
+> runtime1
+   user  system elapsed 
+   0.53    0.02    3.14 
+> runtime2
+   user  system elapsed 
+   0.01    0.00    1.06
+   
+### explore intervisibility results   
+```{r results-test}
 # Check the results of the initial intervisibility run
-result_table <- readRDS("../output_data/Yam_mnd_intervis250k.rds")
+result_table <- readRDS("../output_data/Yam_mnds_intervis.rds")
 result_table <- as.tibble(result_table)
+
+head(result_table)
+result_table <- result_table %>% 
+  rename(i = V1, e = V2, visibility = V3)
 
 # 10 most commanding mounds! i is the index, n is the number of visible features from it
 result_table %>% 
   group_by(i) %>% 
-  tally(result) %>% 
-  arrange(desc(n))
-# maxima were i = 241, and e = 780 
+  tally(visibility) %>% 
+  arrange(desc(n)) # mounds no 333, 38 and 1 see the most other mounds (393-409)
+
+# all the mounds visible from mound no. 333 (n = 409)
 result_table %>% 
-  filter(i == 240) %>% 
-  arrange(desc(e))
-
-
-# calculations per hr
-250000/3600
+  filter(i == 333, visibility == 1) %>% 
+  arrange(desc(e)) %>% 
+  distinct(TRAPtarget) %>% 
+  pull() -> visiblefrom9412
 
 ```
+
+
+
 ### Link results to actual mound locations
+
+```{r link-TRAP-to-results}
+result_table$TRAPorigin <- Yam_mnds$TRAP[result_table$i]
+result_table$TRAPtarget <- Yam_mnds$TRAP[result_table$e]
+
+```
+
+
+```{r most-intervisible-map}
+
+library(mapview)
+
+result_table %>% 
+  group_by(TRAPorigin) %>% 
+  tally(visibility) %>% 
+  arrange(desc(n)) %>% 
+  slice(1:25) %>% 
+  #rename(TRAP = TRAPorigin) %>% 
+  #merge(Yam_mnds, by = c("TRAP")) #%>% 
+  left_join(Yam_mnds, by = c("TRAPorigin"="TRAP")) %>%
+  st_as_sf(crs = 32635) %>% 
+  mapview(cex = "n" , zcol = "HeightMax") +mapview(Yam_mnds,cex = 0.1) +
+  mapview(Yam_mnds %>% dplyr::filter(TRAP%in%visiblefrom9412), cex = 1)
+
+```
+
 
 ### Visualizing the terrain profile
 ```{r}
@@ -288,76 +377,64 @@ lines <-  st_sfc(
              st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
            }))
 
-st_crs(lines) <- st_crs(BApoints)
+st_crs(lines) <- st_crs(BA)
 
 library(mapview)
 library(leafsync)
-m1 <- mapview(lines) + mapview(viewTo_8007, cex = 4) + mapview(BApoints[3,], cex = 10)
+m1 <- mapview(lines) + mapview(viewTo_8007, cex = 4) + mapview(BA[3,], cex = 10)
 m2 <- mapview(viewTo_8007, zcol = "prom250mbuff")
 sync(m1,m2)
 ```
 
-## Distance to zemlishte central settlement
-AKB asks for distance and azimuth to the nearest village (in "zemlishte")
 
-```{r load-distance}
-# Zemlishte information sit in ElhStr_towns shapefile
-village <- read_sf("../data/ElhStr_towns.shp")
-data22 <- read_sf("../data/ElhStr_features.shp")
+
+
+## Intervisibility of Bronze Age mounds in Yambol (not sure if needed)
+In this proof of concept we explore the visibility of BA mounds from other BA mounds, for simplicity's sake. 
+
+BA mounds comprise surveyed and excavated mounds ('bronze') and excavated prior to survey ('extrasf') supplied by Toshko.
+
+Excavated prior:
+Drazhevo - Height: 2.7 m; Diameter: 37.0 m; Land: pasture on the rocky area
+Straldzha - Height: 4.0 m; Diameter: 50.0 m; Land: wines and pasture
+Popovo - Height: 6.8 m; Diameter: 48.0 m; Land: wines and pasture
+
+8345 Mogila village - Height: 3.2 m; Diameter: 37.6 m; Land: pasture on the rocky area 
+
+
+```{r BA-faims, include = FALSE}
+# Filter out the BA mounds from the FAIMS data
+bronze <- c(6009,8007,6010,8345,8346,8357, 8502, 8351, 9257)
+BA <- Yam_mnds %>% 
+  filter(TRAP %in% bronze)
+
+# Add literature dimensions to mound 8345, which was excavated before survey 
+BA$DiameterMax[5] <- 37.5
+BA$HeightMax[5] <- 3.2
+
 ```
 
-### Wrangle the features and nearest municipality centers (which need not be the geographically nearest places)
-```{r}
-# Subset the features 2022 data to only TRAP numbers and the name of the  zemlishte-defining village
-features22 <- data22 %>%
-  dplyr::select(TRAP,EKATTE, Name_en) #EKATTE and Name_en are the number and name of the zemlishte that we are interested in
+```{r BA-Todor, include = FALSE}
+# Add the few mounds excavated before TRAP coverage >> these should be pulled out of the AOR dataset to get the Height, Diameter and other dimensions..
+extras <- data.frame(place = c("Drazhevo", 
+                           "Straldzha",
+                           "Popovo"),
+                 Easting=c(455442,479522,479391),
+                 Northing=c(4710935,4715730,4668279),
+                 HeightMax=c(2.7,4.0,6.8),
+                 DiameterMax = c(37,50,48),
+                 LU_Around = c("Pasture","Perennial","Perennial"),
+                 Type = c("Burial Mound","Burial Mound","Burial Mound"),
+                 Source = c("Excavation","Excavation","Excavation"))
+extrasf <- st_as_sf(extras, coords =c("Easting", "Northing"), crs = 32635)
 
-# Create a simple feature of village points ordered by the TRAP numbers from the features 22 dataset,   
-villages22 <- features22 %>% 
-  st_drop_geometry() %>%  # dropping feature geometry
-  left_join(village, by = "EKATTE") %>%  #joining village geometry to TRAP numbers
-  dplyr::select(-Descr_bg, -Name_bg, -Suffix_bg, -Suffix_en)
-villages22
 ```
 
-### Calculate distances
-
-between mounds and zemlishte using the st_distance() function, utilizing by_element argument, because I am only interested in pairwise distances 
-```{r}
-features22$distToTown <- st_distance(features22$geometry, villages22$geometry, by_element = TRUE)
-ls('package:sf')
+```{r BA-combo, include = FALSE}
+# Combine both BA datasets and spatialize
+library(plyr)
+BApoints <- rbind.fill(BA, extrasf)
+BAcoords <- rbind(st_coordinates(BA) ,st_coordinates(extrasf))
+BApoints <- cbind(BApoints, BAcoords)
+BApoints <- st_as_sf(BApoints, coords = c("X", "Y"), crs = 32635)
 ```
-
-### Calculate azimuth
-
-I use the nngeo package of Michael Dorman as it calculates "planar" /geometric azimuth (https://michaeldorman.github.io/nngeo/index.html).
-sf library works in geometric /planar space and so 
-The other geosphere::azimuth which calculates geographic azimuth in latlong coordinates.(https://stackoverflow.com/questions/51030060/in-geosphere-package-in-r-why-arent-bearings-in-0-360-degrees) 
-
-
-```{r}
-install.packages("remotes")
-remotes::install_github("michaeldorman/nngeo")
-features22$azimuth <- nngeo::st_azimuth(features22$geometry, villages22$geometry)
-```
-
-### Export for Toshko
-```{r}
-# All 479 features from the Elhovo and Straldzha municipality (2010-2022)
-write.csv(features22 %>% st_drop_geometry(), "../output_data/features22forToshko.csv")
-
-# Only 238 features collected in 2022 in the Elhovo and Straldzha municipality
-library(mapview)
-features22 %>% 
-  filter(TRAP %in%mnd22$TRAP) %>% 
-  mapview()
-
-# Only 311 features collected in 2010-2022 in the Elhovo municipality
-mun <- read_sf("../data/Yam_Municipalities.shp")
-
-library(sf)
-features22$geometry %>% 
-  sf::st_intersection(mun[4,]) %>% 
-  mapview()
-```
-
