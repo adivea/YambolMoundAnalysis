@@ -20,9 +20,18 @@ features <- readRDS("../output_data/20221227/features_dd_later_27Dec.rds") # dat
 features <- readRDS("../../MoundMerging2023/output_data/master_sp.rds") # 
 Y_region <- st_read("../data/YamRegion.shp")
 head(features)
-features %>% group_by(Type) %>% tally()
+
+plot(features["Type"])
+
+features %>% 
+  st_filter(Y_region) %>% 
+  st_drop_geometry() %>% 
+  group_by(Type) %>% tally()
+
+
 
 # Clipped deduplicated 1073 mound data within the borders of Yambol
+
 Yam_mnds <- read_rds("../../MoundMerging2023/output_data/mounds_dd_Yam.rds")
 Yam_mnds %>% 
   group_by(Type) %>% 
