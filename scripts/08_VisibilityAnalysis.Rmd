@@ -33,47 +33,8 @@ Yam_mnds %>%
   tally()
 ```
 
-## BA mound subgroup
-to keep things simple
-```{r BA-faims, include = FALSE}
-# Filter out the BA mounds from the FAIMS data
-bronze <- c(6009,8007,6010,8345,8346,8357, 8502, 8351, 9257)
-BA <- Yam_mnds %>% 
-  filter(TRAP %in% bronze)
-
-# Add literature dimensions to mound 8345, which was excavated before survey 
-BA$DiameterMax[5] <- 37.5
-BA$HeightMax[5] <- 3.2
-
-```
-
-
-## Linestring creation
-
-Let's first see if we an create linestrings to later signal which mounds can *see* each other. To do that we need two columns of coordinates: the origin and the target. Here we explore the intervisibility of the seven BA mounds
-```{r linestring}
-# Test linestring creation from one origin and multiple target points. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
-
-coords <- as.matrix(cbind(as.data.frame(st_coordinates(BA$geometry[2])),
-                as.data.frame(st_coordinates(BA$geometry))))
-
-lines_sm <-  st_sfc(
-     lapply(1:nrow(coords),
-           function(i){
-             st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
-           }))
-
-st_crs(lines_sm) <- st_crs(BA)
-
-
-library(mapview)
-mapview(lines_sm)+mapview(BA)
-
-# https://stackoverflow.com/questions/65498300/how-to-efficiently-create-linestrings-from-points
-# https://stackoverflow.com/questions/58150279/plotting-lines-between-two-sf-point-features-in-r
-```
  
-## Intervisibility
+## Intervisibility functions
 
 Intervisibility in human terms mean that two or more points in the landscape have a clear line of sight between them (given reasonable visibility). In computational terms, it means that a straight line connecting the z values of the A and B (the two end-points) does not intersect a polygon formed by terrain profile between them. If it doesn't, A can see B.
 Let's test such line of sight by extracting data out of raster cells between our BA points.
@@ -118,20 +79,10 @@ rasterprofile <- function(r, xy1, xy2){
     data.frame(x=xc, y=yc, z=r[cellFromXY(r,cbind(xc,yc))])
 }
 ```
-Let's test these three functions with real data (BA points)
+Let's test these three functions with real data 
 
-
-```{r rasterprofile}
-mapview(BA[c(3,6,5),])
-m8007 <- c(st_coordinates(BA)[3,],h= BA$HeightMax[3])
-m8346 <- c(st_coordinates(BA)[6,],h= BA$HeightMax[6])
-m8502<- c(st_coordinates(BA)[7,],h= BA$HeightMax[7])
-m8345 <- c(st_coordinates(BA)[5,],h= BA$HeightMax[5])
-Y_elev
-
-test_see <- cansee(Y_elev, m8345, m8346, h1 = m8345[3]  , h2 = m8346[3])
-test_see
-
+```{r}
+Yam_mnds[1:3,]
 ```
 
 ## Automating the visibility calculation
@@ -152,7 +103,8 @@ class(origin)
 ```
 
 ### slow automation via a for-loop
-```{r loop}
+Loops take long so evaluation is off.
+```{r loop, eval = FALSE}
 # LOOP: works but takes days to finish, reduce the i and e if running a test!
 result_table <- NULL
 for (i in 1:nrow(origin)){
@@ -177,7 +129,8 @@ Finishing the 1,000,000 calculations takes a while! (1 hr so far at 17.18 on Thu
 OK, some 24 hours later (Friday afternoon), 241 mounds (*1000) were completed. Clearly the tasks takes 4 days unless we successfully ...
 
 ### Parallelize!
-```{r auto-foreach}
+Parallelisation is much faster than loops but still takes ca 6-12 hours for the whole dataset so run it on demand, if needed
+```{r auto-foreach, eval = FALSE}
 # install.packages("doParallel")
 # install.packages("foreach")
 library(foreach)
@@ -211,7 +164,7 @@ saveRDS(ie_table, "../output_data/Yam_mnds_intervis.rds")
 ### Compare efficiency between for-loop and foreach
 Let's run 4 * 4 (16) or/and 14*14 (~196) calculations using both a for loop and foreach to compare their relative speeds.
 
-```{r compare-loop-foreach}
+```{r compare-loop-foreach, eval = FALSE}
 loop_table <- NULL
 runtime1 <- system.time(
 for (i in 1060:nrow(origin)){
@@ -258,7 +211,7 @@ At 196 iterations (196 results), the foreach (with 12 cores) 'elapsed' time is 1
    user  system elapsed 
    0.01    0.00    1.06
    
-### explore intervisibility results   
+### Explore intervisibility results   
 ```{r results-test}
 # Check the results of the initial intervisibility run
 result_table <- readRDS("../output_data/Yam_mnds_intervis.rds")
@@ -278,9 +231,7 @@ result_table %>%
 result_table %>% 
   filter(i == 333, visibility == 1) %>% 
   arrange(desc(e)) %>% 
-  distinct(TRAPtarget) %>% 
-  pull() -> visiblefrom9412
-
+  distinct(e) 
 ```
 
 
@@ -290,6 +241,14 @@ result_table %>%
 ```{r link-TRAP-to-results}
 result_table$TRAPorigin <- Yam_mnds$TRAP[result_table$i]
 result_table$TRAPtarget <- Yam_mnds$TRAP[result_table$e]
+
+
+# all the mounds visible from mound no. 333 (n = 409)
+result_table %>% 
+  filter(i == 333, visibility == 1) %>% 
+  arrange(desc(e)) %>% 
+  distinct(TRAPtarget) %>% 
+  pull() -> visiblefrom9412  # list of TRAP numbers visible from 9412
 
 ```
 
@@ -313,12 +272,69 @@ result_table %>%
 ```
 
 
+
+## Visualizing intervisibility
+
+### Make visibility lines for 9412 ! TODO
+
+### BA mound subgroup
+to keep things simple
+```{r BA-faims, include = FALSE}
+# Filter out the BA mounds from the FAIMS data
+bronze <- c(6009,8007,6010,8345,8346,8357, 8502, 8351, 9257)
+BA <- Yam_mnds %>% 
+  filter(TRAP %in% bronze)
+
+# Add literature dimensions to mound 8345, which was excavated before survey 
+BA$DiameterMax[5] <- 37.5
+BA$HeightMax[5] <- 3.2
+
+```
+
+
+```{r BA-cansee}
+mapview(BA[c(3,6,5),])
+m8007 <- c(st_coordinates(BA)[3,],h= BA$HeightMax[3])
+m8346 <- c(st_coordinates(BA)[6,],h= BA$HeightMax[6])
+m8502<- c(st_coordinates(BA)[7,],h= BA$HeightMax[7])
+m8345 <- c(st_coordinates(BA)[5,],h= BA$HeightMax[5])
+Y_elev
+
+test_see <- cansee(Y_elev, m8345, m8346, h1 = m8345[3]  , h2 = m8346[3])
+test_see
+
+```
+## Linestring creation
+
+Let's first see if we an create linestrings to later signal which mounds can *see* each other. To do that we need two columns of coordinates: the origin and the target. Here we explore the intervisibility of the seven BA mounds
+```{r linestring}
+# Test linestring creation from one origin and multiple target points. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
+
+coords <- as.matrix(cbind(as.data.frame(st_coordinates(BA$geometry[2])),
+                as.data.frame(st_coordinates(BA$geometry))))
+
+lines_sm <-  st_sfc(
+     lapply(1:nrow(coords),
+           function(i){
+             st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
+           }))
+
+st_crs(lines_sm) <- st_crs(BA)
+
+
+library(mapview)
+mapview(lines_sm)+mapview(BA)
+
+# https://stackoverflow.com/questions/65498300/how-to-efficiently-create-linestrings-from-points
+# https://stackoverflow.com/questions/58150279/plotting-lines-between-two-sf-point-features-in-r
+```
+
 ### Visualizing the terrain profile
-```{r}
+```{r raster-profile}
 # Create a terrain profile and plot it to check potential intervisibility
 testprofile <- rasterprofile(Y_elev,  m8007, m8346)
-testprofile <- rasterprofile(Y_elev,  m8007, mDrazh)
-testprofile <- rasterprofile(Y_elev,  mDrazh, m8346)
+testprofile <- rasterprofile(Y_elev,  m8007, m8345)
+testprofile <- rasterprofile(Y_elev,  m8345, m8346)
 
 # Plot
 plot(testprofile$z, type = "b"); 
@@ -328,13 +344,13 @@ x = c(0,nrow(testprofile))
 y = testprofile$z[c(1,nrow(testprofile))]
 
 # Plot profile with start and end point elevation
-plot(testprofile$z, type = "l", main = "Terrain profile between mounds 8346 and Drazhevo", 
+plot(testprofile$z, type = "l", main = "Terrain profile between mounds 8345 and 8346", 
      ylab = "Elevation(m)", xlab = "Mound distance (*30m)"); 
 lines(x,y, col = "red", lwd = 2)
 
 ```
 
-None of these mounds (Drazhevo and 8346) can see each other, because the one on top of the Zaichi Vrah is obscured by the hill and not aimed at the mounds to the SE. 
+SOme of the mounds (Drazhevo and 8346) can not see each other, because the one on top of the Zaichi Vrah is obscured by the hill and not aimed at the mounds to the SE.  Others with clear line of sight can see one another.
 Let's test the intervisibility between these three and other mounds in the surroundings from the Yambol Mounds dataset. We will use the viewTo() function and the starting coordinates of the three mounds.
 
 ```{r view-to-8007, warning=FALSE}
@@ -348,7 +364,7 @@ coords <- coords %>%
 coords_m <- as.matrix(coords)
 
 # viewTo() working with 3 points
-testview <- viewTo(Y_elev, m8007, rbind(m8346,mDrazh))
+testview <- viewTo(Y_elev, m8007, rbind(m8346,m8345))
 
 # with all points (uncomment if you wish to regenerate!)
 # testview <- viewTo(Y_elev, m8007, coords_m,m8007[3], coords_m[,3])
