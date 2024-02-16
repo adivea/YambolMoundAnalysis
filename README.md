@@ -2,13 +2,15 @@
 
 this repository contains the processing scripts, visualisation and bootstrapped analysis of Yambol mound data aggregate from years 2009-2022. This analysis serves as a baseline for the comparison of burial mound locational choices with other regions or among subsets. 
 
+NOTE: scripts 00 - 01b have now been superseded by MoundsMeging2020 which contains all aggregation and streamlining of features ground truthed in and around Yambol regio. The notes here, nonetheless, and the scripts are functional.
+
 ## Script guide:
 
 * 00a - loads the features (mounds and other things from FAIMS) and enriches them with raster data (TPI, TRI, prom, elev, ...)
 
 * 00b - deduplicates spatial points that are 10m or closer as they are duplicates - revisits of the same feature in subsequent seasons. Often, the first time capture TRAP ID of the mounds is in AKB, so use the dd_early version if you need to X-ref with AKB. Otherwise later records may be more consistent with the post-2017 methodology so consider dd_later dataset for analysis.
 
-* 00c - enriches data with azimuth and distance to administrative village/zemlishte and crops by Yambol region for the purpose of AKB entry and submission
+* 00c - enriches 2022 data(310 features) with azimuth and distance to administrative village/zemlishte and crops by Yambol region for the purpose of AKB submission. A one-time application
 
 * 01a - wrangles mounds out of the feature dataset: by type, checks for duplicate attributes, streamlines attributes such as condition, type etc. to strip anotations, question marks, etc.
 

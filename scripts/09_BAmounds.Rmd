@@ -104,8 +104,8 @@ leaflet(st_transform(Yam_mnds,4326)) %>%
   addProviderTiles("Stamen.TonerLite", group = "Lite") %>% 
   addProviderTiles("Stamen.Watercolor", group = "Watercolor") %>%
   ## add Mounds and BA mounds
-  addCircleMarkers(color = "darkgrey", radius = 1) %>% 
-  addCircleMarkers(data = st_transform(BA_excavated,4326), color = "red", radius = 3) %>% 
+  addCircles(color = "black", radius = 1) %>% 
+  addCircleMarkers(data = st_transform(BA_excavated,4326), color = "red", radius = 5) %>% 
   addPolygons(data =st_transform(Y_region, 4326), color = "darkgrey") %>% 
 #data=Yam_, group="Features", color = "black",
  #                  radius = 7,   fillOpacity = 0.75, stroke = FALSE,
@@ -116,7 +116,7 @@ addMiniMap(
     tiles = providers$Stamen.TonerLite,
    # tiles = providers$Esri.OceanBasemap,
     position = 'topright', 
-    width = 400, height = 400,
+    width = 300, height = 300,
     zoomLevelOffset = -4,
     #centerFixed = c(),
     toggleDisplay = TRUE) %>%

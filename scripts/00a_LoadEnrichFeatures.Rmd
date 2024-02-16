@@ -40,7 +40,7 @@ Its outputs are:
 
 NEEDS: 
 2022 merged dataset - -DONE in 00_Export2022
-Spatial deduplilcation -- DONE in 00b_Deduplication
+Spatial deduplication -- DONE in 00b_Deduplication
 
 ## Setup
 
@@ -55,12 +55,29 @@ library(mapview)
 This data is a bit special as it was processed in 2020 and contains all map mounds as well as all survey features detected en route, and so not only extant [829] and extinct [155] mounds (see MoundMerging2020 repo in Github)
 ```{r mounds18}
 # Environmental-extraction-enriched output from 2020 Mound Merging repo > 07_EnrichSpatial.R
-mn09_18 <- read_csv2("../data/enriched_all.csv")
+mn09_18 <- read_csv2("../data/enriched_all.csv") # 1174
 names(mn09_18)
 
 mn09_18 %>% 
   group_by(Type) %>% 
   count()
+
+
+# Fix erroneous coordinates in case of 8142
+
+mn09_18 %>% 
+  filter(TRAP == 8142)
+
+# real coordinates
+m8142 <-data.frame(TopoID = 200562, Note = "poorly geocoded TopoID200562", TRAP = 8142, X = 467040.37, Y = 4698768.43) 
+
+# update the coordinates
+mn09_18 <- rows_update(
+  mn09_18,
+  m8142,
+  by = "TRAP")
+mn09_18 %>% 
+  filter(TRAP == 8142)
 ```
 ## Load 2022 data
 
