@@ -4,21 +4,26 @@ author: "Adela Sobotkova"
 date: "2022-12-14"
 output: html_document
 ---
-## Purpose and prerequisites:
-This script serves to elaborate the calculation of mutual intervisibility (clear line of sight) between various archaeological features, starting here with burial mounds in the Yambol Region and ASTER elevation raster (30m spatial resolution). 
+## Purpose and prerequisites
+This script calculates mutual intervisibility (line of sight) between various archaeological features, starting here with burial mounds in the Yambol Region within ASTER elevation raster (30m spatial resolution). 
 
-The script basically works, calculating linestrings, intervisibility between Yam_mounds and generating maps
+This markdown guides you to: 
+
+1. Define functions to calculate line-of-sight visibility between two features and automate the process for a 1000 features. 
+2. Visualize intervisibility for calculated features (here: mounds in Yambol). To visualize, you can skip directly to section "Visualizing Intervisibility".
+
+The script basically works, calculating linestrings, raster profiles, and intervisibility between Yam_mounds and generating maps
 
 The proof of concept is done on BA mounds and to replicate it you might need: 
 - to run 09 BA mounds to have the necessary libraries and digital objects
 
-THe code should be expandable
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
                       warning = FALSE)
 library(sf)
 library(raster)
 library(tidyverse)
+library(mapview)
 ```
 
 ## Load 2009-2022 data
@@ -27,7 +32,8 @@ library(tidyverse)
 Y_elev <- raster("../output_data/large/Yelev32635.tif")
 # Yambol mounds
 Yam_mnds <- readRDS("../output_data/Yam_dd_mnds.rds") # 1073 features
-Yam_mnds
+mapview(Yam_mnds, zcol = "Type")
+
 Yam_mnds %>% 
   group_by(Type) %>% 
   tally()
@@ -81,7 +87,7 @@ rasterprofile <- function(r, xy1, xy2){
 ```
 Let's test these three functions with real data 
 
-```{r}
+```{r mound-check}
 Yam_mnds[1:3,]
 ```
 
@@ -214,7 +220,7 @@ At 196 iterations (196 results), the foreach (with 12 cores) 'elapsed' time is 1
 ### Explore intervisibility results   
 ```{r results-test}
 # Check the results of the initial intervisibility run
-result_table <- readRDS("../output_data/Yam_mnds_intervis.rds")
+result_table <- readRDS("../output_data/result_table.rds")
 result_table <- as.tibble(result_table)
 
 head(result_table)
@@ -270,12 +276,148 @@ result_table %>%
   mapview(Yam_mnds %>% dplyr::filter(TRAP%in%visiblefrom9412), cex = 1)
 
 ```
+```{r}
+# Save the intervisibility table linked with TRAP ids
+saveRDS(result_table, "../output_data/Yam_mnds_intervis.rds")
+# i and e are the same as TRAPorigin and TRAPtarget
+```
 
 
 
 ## Visualizing intervisibility
 
-### Make visibility lines for 9412 ! TODO
+```{r most-intervisible-map}
+# load data
+mnd_vis <- readRDS("../output_data/Yam_mnds_intervis.rds")
+
+# group by viewpoint, join to spatial points and plot on a map
+library(mapview)
+
+mnd_vis %>% 
+  group_by(TRAPorigin) %>% 
+  tally(visibility) %>% 
+  arrange(desc(n)) %>% 
+  slice(1:25) %>% 
+  # join the summarized dataframe of 25 most visible mounds to mound spatial points
+  left_join(Yam_mnds, by = c("TRAPorigin"="TRAP")) %>%
+  # activate the geometry column with proper CRS
+  st_as_sf(crs = 32635) %>% 
+  # plot the 25 most visible mounds, varying their radius by number of visible features from this location and varying color by mound height
+  mapview(cex = "n" , zcol = "HeightMax") + 
+  # show other mounds in the background as small dots
+  mapview(Yam_mnds,cex = 0.1) +
+  # differentiate mounds visible from 9412 (the most visible single features)
+  mapview(Yam_mnds %>% dplyr::filter(TRAP%in%visiblefrom9412), cex = 1)
+
+mapview(Yam_mnds[Yam_mnds$TRAP %in% visiblefrom9412,])
+```
+
+### Visibility lines for 9412
+
+
+```{r linestrings-9412}
+# Test linestring creation from 9412 and its 409 visible mounds. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
+
+coords <- as.matrix(cbind(as.data.frame(st_coordinates(Yam_mnds %>% filter(TRAP == 9412))),
+                as.data.frame(st_coordinates(Yam_mnds %>% filter(TRAP %in% visiblefrom9412)))))
+
+lines_sm <-  st_sfc(
+     lapply(1:nrow(coords),
+           function(i){
+             st_linestring(matrix(coords[i,],ncol=2,byrow=TRUE))
+           }))
+
+st_crs(lines_sm) <- st_crs(Yam_mnds)
+
+
+library(mapview)
+mapview(lines_sm)+mapview(Yam_mnds %>% filter(TRAP %in% visiblefrom9412))
+
+# https://stackoverflow.com/questions/65498300/how-to-efficiently-create-linestrings-from-points
+# https://stackoverflow.com/questions/58150279/plotting-lines-between-two-sf-point-features-in-r
+
+```
+
+The linestrings for 9412 seem to reach the national border, which is hard to believe... 
+What is going on here? Let's check the prominence of the points first and raster profiles second.
+
+## Raster profile
+```{r}
+profile <- function(IDorigin, IDtarget){
+     # must be an elevation raster
+  # library(raster)
+  # if(!exists(Y_elev)){
+  #    Y_elev <- raster("../output_data/large/Yelev32635.tif")}
+     # must be a simple feature with same CRS as raster
+  library(sf) 
+  # target just as a dataframe of x, y, WITHOUT height
+  origin <- Yam_mnds %>%  
+         filter(TRAP == IDorigin) %>% 
+          st_coordinates()  
+  target <- Yam_mnds %>% 
+         filter(TRAP == IDtarget) %>%
+          st_coordinates()
+  # target needs to be a dataframe of x, y, and height
+  # origin <- data.frame(Yam_mnds %>%  
+  #        filter(TRAP == origin) %>% 
+  #         st_coordinates(), h= Yam_mnds$HeightMax[Yam_mnds$TRAP == origin])
+  #   target <- data.frame(Yam_mnds %>% 
+  #        filter(TRAP == target) %>% 
+  #         st_coordinates(), h= Yam_mnds$HeightMax[Yam_mnds$TRAP == target])
+  testprofile <- rasterprofile(Y_elev,  origin, target)
+  x = c(0,nrow(testprofile))
+  y = testprofile$z[c(1,nrow(testprofile))]
+
+    # Plot profile with start and end point elevation
+  plot(testprofile$z, type = "l", 
+       main = paste0("Terrain profile between mounds ", IDorigin, " and ", IDtarget),  
+       ylab = "Elevation(m)", xlab = "Mound distance in pixels (*30m)"); 
+  lines(x,y, col = "red", lwd = 2)
+  
+}
+
+origin <- 9412
+target <- 9414
+profile(9412, 8345)
+
+# Plot
+plot(testprofile$z, type = "b"); 
+
+```
+
+## Prominence point map
+We have mound-centereed indeces of ruggedness and topographic prominence, which should align with the objective/dry measure of visibility above.
+The measures are at different scales. Prominence in 250m buffer specifies how big a fraction (in percentages) of the surrounding area is visible to a person on the mound.
+TPI is measured from on a scale from -3 to 2 , with most values between 0 and 1. TRI is between 0 and 4, with median at 1. Rough measure goes from 0 to 15, with mean at 3.7.
+```{r}
+# various measures of prominence
+summary(Yam_mnds[, c("prom250mbuff", "TPI", "TRI", "rough")])
+
+
+# prominence in 250m buffer
+Yam_mnds %>% 
+  filter(prom250mbuff > 85) %>% 
+  mapview(zcol = "prom250mbuff") # 9412 not present!
+
+# TPI
+hist(Yam_mnds$TPI)
+Yam_mnds %>% 
+  filter(TPI >= 1) %>% 
+  mapview(zcol = "TPI")# 9412 not present!
+
+# TRI
+hist(Yam_mnds$TRI)
+Yam_mnds %>% 
+  filter(TRI >= 2.53) %>% 
+  mapview(zcol = "TRI")# 9412 not present!
+
+# rough
+hist(Yam_mnds$rough)
+Yam_mnds %>% 
+  filter(rough >= 7) %>% 
+  mapview(zcol = "rough")# 9412 not present!
+```
+
 
 ### BA mound subgroup
 to keep things simple
@@ -310,8 +452,8 @@ Let's first see if we an create linestrings to later signal which mounds can *se
 ```{r linestring}
 # Test linestring creation from one origin and multiple target points. The coords object needs to be a matrix, but to cbind one to many coordinates the component columns need to be dataframes.
 
-coords <- as.matrix(cbind(as.data.frame(st_coordinates(BA$geometry[2])),
-                as.data.frame(st_coordinates(BA$geometry))))
+coords <- as.matrix(cbind(as.data.frame(st_coordinates(BA[2])),
+                as.data.frame(st_coordinates(BA))))
 
 lines_sm <-  st_sfc(
      lapply(1:nrow(coords),
@@ -334,7 +476,7 @@ mapview(lines_sm)+mapview(BA)
 # Create a terrain profile and plot it to check potential intervisibility
 testprofile <- rasterprofile(Y_elev,  m8007, m8346)
 testprofile <- rasterprofile(Y_elev,  m8007, m8345)
-testprofile <- rasterprofile(Y_elev,  m8345, m8346)
+testprofile <- rasterprofile(Y_elev,  st_coordinates(Yam_mnds[1,]), st_coordinates(Yam_mnds[333,]))
 
 # Plot
 plot(testprofile$z, type = "b"); 
