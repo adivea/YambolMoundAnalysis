@@ -378,7 +378,7 @@ profile <- function(IDorigin, IDtarget){
 
 origin <- 9412
 target <- 9414
-profile(9412, 8345)
+profile(9412, 8242) # these two points are at opposite sides of the region
 
 # Plot
 plot(testprofile$z, type = "b"); 
