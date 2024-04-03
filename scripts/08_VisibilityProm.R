@@ -4,8 +4,8 @@
 ### and then edit the writeRaster() and png() function paths to relate to your raster
 
 Y_elev <- raster("output_data/large/Yelev32635.tif")
-elev <- raster("../output_data/large/YT_elev32635.tif")
-mapview(elev)
+elev <- raster("output_data/large/YT_elev32635.tif")
+mapview(elev)+mapview(Y_region)
 
 prom_radius <- function(input, radius) {  #length of neighborhood is defined by desired radius in meters
   #e.g. radius in m will determine the size of passing window / neighborhood 
@@ -97,13 +97,66 @@ elev
 # https://stackoverflow.com/questions/72027179/terra-raster-values-lost-after-projection
 
 
+
+############# Clip prominence raster to Yambol region N-S extent
+
+ymin <- st_bbox(Y_region)[2]+(st_bbox(Y_region)[4]-st_bbox(Y_region)[2])/2
+new_extent <- extent(r)
+new_extent[3] <- st_bbox(Y_region)[2] - 1000
+new_extent[4]<- st_bbox(Y_region)[4]+1000
+
+prom <- crop(prom2000, new_extent)
+mapview(prom) +mapview(Y_region)
+
 ############# Stochastically model patchy vegetation
 # chatgpt suggestions were too complex and time-consuming
 # so instead we do a quick binomial random sample, and model 10, 25, 50, and 75% forest coverage
 # and then add it (10-20m) to our elevation raster and recalculate intervisibility
 # quick and dirty binomial raster creation
+r <- raster(prom)
+ncell(prom)
 
-x <- rbinom(n=10000, size=1, prob=0.70)
-r <- setValues(r, x)
-plot(r)
+# Binomial distribution function; probability refers to 
+# completeness of coverage, 05 = 50% of terrain covered 
+# size refers to vegetation height, see 
+#https://www.monumentaltrees.com/en/records/bgr/ for height examples
 ?rbinom()
+r <- raster(ncol = 100, nrow = 100)
+test <- rbinom(n=10000, size=1, prob=0.50)
+test <- setValues(r, test)
+plot(test)
+
+r <- raster(prom)
+x <- rbinom(n=ncell(prom), size=20, prob=0.50)
+veg20mgradual <- setValues(r, x)
+plot(veg20mgradual)
+hist(values(veg20mgradual))
+
+x <- rbinom(n=ncell(prom), size=1, prob=0.50)
+veg10m <- setValues(r, x)
+veg10m[veg10m >= 1] <- 10
+veg10m[veg10m < 1] <- 0
+plot(veg10m)
+hist(values(veg10m))
+
+mapview(veg10m)+mapview(Y_region)
+
+############# Overlay of vegetation over yambol elev
+elev_cropped <- crop(elev, new_extent)
+
+Y_elev10 <- overlay(elev_cropped, 
+                    veg10m, 
+                    fun = function(x, y) ifelse(!is.na(x), x + y, y))
+hist(values(Y_elev10))
+hist(values(elev_cropped))
+
+Y_elev20grad <- overlay(elev_cropped, 
+                    veg20mgradual, 
+                    fun = function(x, y) ifelse(!is.na(x), x + y, y))
+hist(values(Y_elev20grad))
+hist(values(elev_cropped))
+
+############### Recalculate prominence
+# with the modelled patchy vegetation
+prom_radius(Y_elev10, 500)
+prom_radius(Y_elev20grad, 550)
