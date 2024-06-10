@@ -21,7 +21,7 @@ opts_chunk$set(echo=TRUE,
 opts_knit$set(width=75)
 ```
 
-## Visualize military installations on the Cold-War border
+# Explore and visualize military installations on the Cold-War border
 
 Yambol region borders on Turkey and Greece and with the Tundzha River flowing through the border in a deep ravine overgrown with forests, this region represented a prime ground for birectional movement. Movement of populations is posited here since the first farming immigrants in the 6th millennium. As the arid conditions of the early Holocene were letting up and humidity allowed for higher vegetation to spread, the first farmers settled near the Tundzha River, planting crops and building the first permanent settlements in the area. 8000 years later, this was an administrative border between two hostile worlds, carefully guarded and with restricted movement. Military forces on both sides set up observation posts and defensive locations so as to keep control over the territory. 
 
@@ -29,19 +29,38 @@ This scripts visualizes the locations of military installations recorded in plac
 
 To DOES: 
  - national boundaries
- - all map mounds needed!
+ 
 ```{r libraries}
 library(tidyverse)
 library(sf)
 library(raster)
 ```
 
-## Load 2009-2022 mound data and 2018 - 2022 military feature data
-```{r get-mil}
+## Load Data
+
+### 2009-2022 FAIMS mound data, map mounds, and 2018 - 2022 military feature data
+```{r get-mnd-data}
 getwd()
-Yam_mnds <- readRDS("../output_data/features_dd_later_27Dec.rds")
+#Yam_mnds <- readRDS("../output_data/features_dd_later_27Dec.rds")
+
+# Clipped deduplicated 1073 mound data within the borders of Yambol
+Yam_mnds <- read_rds("../../MoundMerging2023/output_data/mounds_dd_Yam.rds")
+
 Yam_mil <- read_csv("../output_data/MIlitaryFeatures-OR12Dec22.csv")
 mapmnds <- read_sf("../data/MapMounds32635.shp")
+
+mapmnds_a <- read_sf("../data/angel_mapmnds/MoundsAngel.shp")
+
+# fix angels' mounds IDs and Symbols
+plot(mapmnds_a$geometry);plot(mapmnds$geometry, add =T)
+
+```
+### Elevation raster and Yambol region boundary
+```{r get-elev}
+Y_region <- st_read("../data/YamRegion.shp")
+
+Y_elev <- raster("../output_data/large/Yelev32635.tif")
+plot(Yam_mnds$geometry, cex = sqrt(as.numeric(Yam_mnds$HeightMax)), main = " Yambol region burial mound distribution")
 ```
 
 ### Explore the data a bit
@@ -57,16 +76,18 @@ Yam_mil %>%
   group_by(CentralFeature) %>% 
   tally() %>% 
   arrange(desc(n))
+
+# check
+library(lubridate)
+Yam_mil %>% 
+  left_join(Yam_mnds, by=c("MoundID"="TRAP")) %>% 
+  dplyr::select(MoundID, Date, Type.x) %>% 
+  mutate(Year = year(Date)) %>% 
+  group_by(Year) %>% tally()
+
 ```
 
-## Load elevation raster and Yambol region boundary
-```{r get-elev}
-Y_region <- st_read("../data/YamRegion.shp")
-
-Y_elev <- raster("../output_data/large/Yelev32635.tif")
-plot(Yam_mnds$geometry, cex = sqrt(as.numeric(Yam_mnds$HeightMax)), main = " Yambol region burial mound distribution")
-```
-## Map mounds 
+## Plot map mounds 
 are good for the background, but now the file contains all kinds of benchmarks. Let's filter to the sunburst, brown sunburst-like symbol, which in 99% cases leads to a burial mound.
 
 ```{r get-map-mnd}
@@ -80,22 +101,34 @@ plot(mapmnds$geometry, main = "Mound symbols in Soviet maps"); plot(Y_region$geo
 ```
 
 
+## Create bunkers layer
 
-## Plot with mapview
-Mapview is great for interactive vieweing in the digital document.
-```{r plot-mil}
+and streamline their types for easier plotting
+```{r bunkers}
 Yam_bunkers <- Yam_mnds %>% 
   dplyr::filter(TRAP %in% Yam_mil$MoundID) %>% 
-  full_join(Yam_mil, by = c("TRAP"="MoundID"))
+  full_join(Yam_mil, by = c("TRAP"="MoundID"))  # can be done via left join from Yam_mil layer
 
+# we need a factor to visualize military feature type
+Yam_bunkers$CentralFeature <- factor(Yam_bunkers$CentralFeature)
 
-library(mapview)
-Yam_bunkers$CentralFeature <- factor(Yam_bunkers$CentralFeature
-)
+# consider simplifying Tank and Vehicle emplacement into one category
 levels(Yam_bunkers$CentralFeature) <- c("Bunker", "Infantry trench","Tank emplacement","Vehicle emplacement")
 
-mapview(Yam_mnds, cex = 1) + mapview(Yam_bunkers, zcol = "CentralFeature")
+
+# rename CentralFeature to Feature type for better legends
+names(Yam_bunkers)[33] <- "Feature type"
+
+st_write(Yam_bunkers, "../output_data/Yam_bunkers.shp", append = FALSE)
 ```
+
+## Plot bunker types with mapview
+Mapview is great for interactive viewing in the digital document.
+```{r plot-bunkers}
+library(mapview)
+
+mapview(Yam_mnds, cex = 1) + mapview(Yam_bunkers, zcol = "Feature type")
+```   
 ## Great, let's explore different plotting packages
 
 circle = bunkers, 19, 20, 21 - color fill
@@ -123,13 +156,14 @@ leaflet() %>%
 ```
 
 
-## Mounds in tmaps
+## Mounds and military features in tmaps
 Let's create a printable overview Tmap differentiating between Yambol mounds/features and military installations
 
 
 ## Overview
-```{r tmap-mil}
+```{r tmap-mapmnd-mil}
 library(tmap)
+
 # all the features throughout the region
 overview_mapmnds <- tm_shape(mapmnds, bbox = st_bbox(Y_region))+
   tm_symbols(shape = 2, 
@@ -145,7 +179,7 @@ tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) +
   # tm_polygons(col="cornsilk2", border.alpha = 0)+
   # tm_shape(features) + 
   tm_symbols(shape = 25, 
-             col="CentralFeature", 
+             col="Feature type", 
              palette = "plasma", # try Set2 ,Set3, viridis or other palettes
           #   title = "Feature type",
              size = 0.2) +  #6 and 25 are downward triangles
@@ -158,6 +192,11 @@ tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) +
   #tm_layout(title = "Registered standing features") 
   tm_layout(title = "A",
             legend.position = c("left", "bottom"))
+
+overview_mapmnds
+
+```
+```{r}
 
 overview_yammnds <- tm_shape(Yam_mnds, bbox = st_bbox(Y_region))+
   tm_symbols(shape = 2, 
@@ -173,7 +212,7 @@ tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) +
   # tm_polygons(col="cornsilk2", border.alpha = 0)+
   # tm_shape(features) + 
   tm_symbols(shape = 25, 
-             col="CentralFeature", 
+             col="Feature type", 
              palette = "plasma", # try Set2 ,Set3, viridis or other palettes
           #   title = "Feature type",
              size = 0.2) +  #6 and 25 are downward triangles
@@ -188,6 +227,9 @@ tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) +
             legend.position = c("left", "bottom"))
 
 overview_yammnds
+
+#pdf(overview_yammnds, "figures/figure2.tiff")
+
 ```
 
 
@@ -196,7 +238,7 @@ We need maps zooming in to differentiate the different locations of vehicle empl
 ```{r tmap-detail}
 library(tmap)
 tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]), 20000))) + 
-  tm_dots( shape = "CentralFeature", #6 and 26 are downward triangles
+  tm_dots(shape = "Feature type", #6 and 26 are downward triangles
             alpha= 0.4,
             title = "Type of \nmilitary features",
              size = 0.3) +  
@@ -260,7 +302,7 @@ tm_raster(alpha = 0.6,
           title = "Elevation (masl)") +
 tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]),20000))) + 
   tm_dots( col = "FD",
-           shape = "CentralFeature",
+           shape = "Feature type",
           palette = color_type,
           title = "Facing \ndirection",
           alpha= 0.6,
@@ -282,7 +324,7 @@ tm_raster(alpha = 0.6,
           title = "Elevation (masl)") +
 tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]),20000))) + 
   tm_dots( col = "FD",
-           shape = "CentralFeature",
+           shape = "Feature type",
           palette = color_type,
           title = "Facing \ndirection",
           alpha= 0.6,
@@ -320,7 +362,7 @@ tm_raster(alpha = 0.6,
           title = "Elevation (masl)") +
 tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]), 10000))) + 
   tm_dots( col = "FD",
-           shape = "CentralFeature",
+           shape = "Feature type",
           palette = color_type,
           title = "Facing \ndirection",
           alpha= 0.6,
@@ -353,7 +395,7 @@ box[2] <- box[2]+diff/2
 box[4] <- box[4]-diff/2
 tm_shape(Yam_bunkers,bbox = box) + 
   tm_dots( col = "FD",
-           shape = "CentralFeature",
+           shape = "Feature type",
           palette = color_type,
           title = "Facing direction",
           alpha= 0.6,
@@ -385,7 +427,7 @@ tm_shape(Yam_bunkers) +
 ```{r type-facets}
 tm_shape(Yam_bunkers) + 
   tm_dots()+
-  tm_facets(by = "CentralFeature",free.coords = FALSE)+
+  tm_facets(by = "Feature type",free.coords = FALSE)+
   tm_shape(Y_region) +
  tm_borders(col = "grey",
               lwd = 2) +
