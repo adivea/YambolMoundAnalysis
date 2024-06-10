@@ -37,6 +37,7 @@ mapview(Yam_mnds, zcol = "Type")
 Yam_mnds %>% 
   group_by(Type) %>% 
   tally()
+
 ```
 
  
@@ -422,6 +423,19 @@ result_table %>%
 
 In bare earth model, 9412 rules with line of sight to 409 other mounds. If we model random vegetation patches with mean 10m height, the mound with the greatest line of sight is 9044 a 6m tall mound near Botevo.
 
+### COmbatting edge effect
+Calculate intervisibility for mounds among those 5 km to the border and the mapped mound and then add this result to the current intervisibility table. How many mounds outside Yambol can these mounds see?
+
+```{r}
+innerbuff <- st_buffer(Y_region, -5000)
+plot(Y_region$geometry);plot(innerbuff, add = T)
+#plot(st_intersection(Yam_mnds, innerbuff), add = T)
+plot(st_difference(Yam_mnds, innerbuff), add = T)
+
+edgemounds <- st_difference(Yam_mnds, innerbuff)
+
+```
+
 ## Visualizing intervisibility
 - test for visibility between mounds and major settlements - eg. Kabyle, Dadopara and further south Turkish sites.
 
@@ -444,11 +458,29 @@ mnd_vis %>%
   # plot the 25 most visible mounds, varying their radius by number of visible features from this location and varying color by mound height
   mapview(cex = "n" , zcol = "HeightMax") + 
   # show other mounds in the background as small dots
-  mapview(Yam_mnds,cex = 0.1) +
+  mapview(Yam_mnds,cex = 0.1) #+
   # differentiate mounds visible from 9412 (the most visible single features)
-  mapview(Yam_mnds %>% dplyr::filter(TRAP%in%visiblefrom9412), cex = 1)
+  # mapview(Yam_mnds %>% dplyr::filter(TRAP%in%visiblefrom9412), cex = 1)
 
 mapview(Yam_mnds[Yam_mnds$TRAP %in% visiblefrom9412,])
+```
+
+### all intervisible ones
+```{r}
+mnd_vis %>% 
+  group_by(TRAPorigin) %>% 
+  tally(visibility) %>% 
+  arrange(desc(n)) %>% 
+  slice(1:100) %>% 
+  # join the summarized dataframe of 25 most visible mounds to mound spatial points
+  left_join(Yam_mnds, by = c("TRAPorigin"="TRAP")) %>%
+  # activate the geometry column with proper CRS
+  st_as_sf(crs = 32635) %>% 
+  # plot the 25 most visible mounds, varying their radius by number of visible features from this location and varying color by mound height
+  mapview(cex = "n" , zcol = "HeightMax") + 
+  # show other mounds in the background as small dots
+  mapview(Yam_mnds,cex = 0.1)+
+  mapview(Yam_mnds %>% filter(prom2000mbuff>90 &prom250mbuff>90 ), cex = 10)
 ```
 
 ### Visibility lines for 9412
@@ -528,7 +560,7 @@ plot(testprofile$z, type = "b");
 ```
 
 ## Prominence point map
-We have mound-centereed indeces of ruggedness and topographic prominence, which should align with the objective/dry measure of visibility above.
+We have mound-centered indeces of ruggedness and topographic prominence, which should align with the objective/dry measure of visibility above.
 The measures are at different scales. Prominence in 250m buffer specifies how big a fraction (in percentages) of the surrounding area is visible to a person on the mound.
 TPI is measured from on a scale from -3 to 2 , with most values between 0 and 1. TRI is between 0 and 4, with median at 1. Rough measure goes from 0 to 15, with mean at 3.7.
 ```{r}
@@ -558,6 +590,45 @@ hist(Yam_mnds$rough)
 Yam_mnds %>% 
   filter(rough >= 7) %>% 
   mapview(zcol = "rough")# 9412 not present!
+```
+
+### Bring in prominence at greater radius
+```{r}
+prom2000 <- raster("../output_data/prom_clean/YT_prom2000m.tiff")
+plot(prom2000)
+Yam_mnds <- Yam_mnds %>% 
+  filter(grepl("Mound", Type))
+
+library(raster)
+extract
+Yam_mnds$prom2000mbuff <- raster::extract(prom2000, st_coordinates(Yam_mnds))
+
+Yam_mnds %>% 
+  filter(prom2000mbuff > 95) %>% 
+  mapview(zcol = "prom2000mbuff") # 9412 not present!
+
+Yam_mnds %>% 
+  filter(prom250mbuff > 95) %>% 
+  mapview(zcol = "prom250mbuff")
+
+# Three mounds are in areas of prominence over 95% in both 250 and 2000m radius 
+Yam_mnds %>% 
+  filter(prom250mbuff > 95) %>% 
+  filter(prom2000mbuff > 95) %>% 
+  mapview()
+  
+# Twelve are in areas of 90% prominence
+Yam_mnds %>% 
+  filter(prom250mbuff > 90) %>% 
+  filter(prom2000mbuff > 90) %>% 
+  mapview()
+
+# Twelve are in areas of 90% prominence
+Yam_mnds %>% 
+  filter(prom250mbuff > 90) %>% 
+  filter(prom2000mbuff > 90) %>%
+  select(TRAP:Type, HeightMax, prom250mbuff, prom2000mbuff) %>% 
+  arrange(desc(prom2000mbuff))
 ```
 
 

@@ -229,7 +229,7 @@ tm_shape(Yam_bunkers, bbox = st_bbox(Y_region)) +
 overview_mapmnds
 
 ```
-```{r}
+```{r tmap-yam-mm}
 
 overview_yammnds <- tm_shape(Yam_mnds, bbox = st_bbox(Y_region))+
   tm_symbols(shape = 2, 
@@ -270,11 +270,16 @@ overview_yammnds
 We need maps zooming in to differentiate the different locations of vehicle emplacements versus bunkers/observation towers etc.
 ```{r tmap-detail}
 library(tmap)
+tmap_mode("view")
 tm_shape(Yam_bunkers, bbox = st_bbox(st_buffer(st_geometry(Yam_bunkers[1,]), 20000))) + 
   tm_dots(shape = "Feature type", #6 and 26 are downward triangles
             alpha= 0.4,
             title = "Type of \nmilitary features",
-             size = 0.3) +  
+             size = "HeightMax", # was 0.3
+          col = "yellow") +
+   tm_text(text = "TRAP", size = 1)+  
+tm_shape(mapmnds) +
+  tm_dots(size = 0.01)+
 tm_shape(Y_region) +
  tm_borders(col = "grey",
               lwd = 2)+
@@ -283,9 +288,24 @@ tm_shape(Y_region) +
   tm_scale_bar(position = c("left", "top"),
                breaks = c(0,5,10), 
                text.size = 0.75)  +
-  tm_layout(title = "B", legend.outside = TRUE)
+  tm_layout(title = "B", legend.outside = TRUE) +
+
+  tm_minimap()
 
 
+```
+### Export data for Angel's viewsheds
+```{r}
+# filter bunkers
+features %>% 
+  filter(TRAP %in% c(8595, 9845, 8619,8515, 8707, 8535, 8244, 8271, 8798, 8230, 
+                     9836, 9841, 9721, 8531, 8709,8711, 8278, 8798)) %>% # pull(TRAP) %>% sort()
+  st_write("D:/Daaaaaataaaa/bunkers.shp")
+
+group_by(Type) %>% 
+  tally()
+st_write(Yam_mnds, "../data/Yam_mnds.shp")
+st_write(features, "../data/Yam_features.shp")
 ```
 
 
