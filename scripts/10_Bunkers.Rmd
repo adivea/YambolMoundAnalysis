@@ -27,8 +27,10 @@ Yambol region borders on Turkey and Greece and with the Tundzha River flowing th
 
 This scripts visualizes the locations of military installations recorded in place of burial mounds (symbols in Soviet topographic maps).
 
+This script also processes Angel's digitized Map Mounds - this section needs to eventually be moved to a separate script!!
+
 To DOES: 
- - national boundaries
+ - national boundaries for a good inset map
  
 ```{r libraries}
 library(tidyverse)
@@ -49,12 +51,41 @@ Yam_mnds <- read_rds("../../MoundMerging2023/output_data/mounds_dd_Yam.rds")
 Yam_mil <- read_csv("../output_data/MIlitaryFeatures-OR12Dec22.csv")
 mapmnds <- read_sf("../data/MapMounds32635.shp")
 
+```
+### Add and clean map mounds Angel digitized in June 2024
+this concerns mounds north of Yambol within 25 km buffer 
+```{r}
 mapmnds_a <- read_sf("../data/angel_mapmnds/MoundsAngel.shp")
 
+
 # fix angels' mounds IDs and Symbols
-plot(mapmnds_a$geometry);plot(mapmnds$geometry, add =T)
+mapview(mapmnds_a, cex = 3) + mapview(mapmnds, cex =1)
+mapmnds_a$Id <- 400000:400284
+mapmnds_a$createdBy <- "Angel Grigorov"
+mapmnds_a$createdAt <- "2024-06-06"
+mapmnds_a <- mapmnds_a %>% 
+  st_transform(crs = 4326) %>% 
+  mutate(Latitude = st_coordinates(.)[,2],
+         Longitude = st_coordinates(.)[,1])%>% 
+   st_transform(crs = 32635) 
+
+# this assignment does not work
+mapmnds_a <- mapmnds_a %>% 
+  mutate(MapSymbol = case_when(is.na(MpSymbol) ~ "Sunburst",
+                               !is.na(MpSymbol) ~ MpSymbol)) %>%
+  dplyr::select(-MpSymbol) %>% 
+  mutate(Notes = "digitized in 2024")
+#st_write(mapmnds_a, "../data/MapMoundsA32635.geojson")
+
+
+# merge Angel's with main mapped mounds
+mapmnds <- mapmnds %>% 
+  rename(Id =identfr, createdBy=cretdBy, createdAt = FtrTmst,Latitude = Latitud, Longitude = Longitd, MapSymbol = MpSymbl, Notes = Note) %>% 
+  dplyr::select(Id, createdBy, createdAt, Latitude, Longitude, MapSymbol, Notes) %>% 
+  rbind(mapmnds_a)
 
 ```
+
 ### Elevation raster and Yambol region boundary
 ```{r get-elev}
 Y_region <- st_read("../data/YamRegion.shp")
@@ -63,7 +94,9 @@ Y_elev <- raster("../output_data/large/Yelev32635.tif")
 plot(Yam_mnds$geometry, cex = sqrt(as.numeric(Yam_mnds$HeightMax)), main = " Yambol region burial mound distribution")
 ```
 
-### Explore the data a bit
+### Explore the military features a bit
+
+Most seem collected in 2018 and 2022 seasons, even though we have seen emplacements since 2009 (on Boyanovo quarry south slope)
 ```{r explore-mil}
 tail(Yam_mil)
 Yam_mil <- Yam_mil[-79,]
@@ -91,12 +124,11 @@ Yam_mil %>%
 are good for the background, but now the file contains all kinds of benchmarks. Let's filter to the sunburst, brown sunburst-like symbol, which in 99% cases leads to a burial mound.
 
 ```{r get-map-mnd}
-table(mapmnds$MpSymbl)  # 'circle' seems the best think to search on with ca 4289records
+table(mapmnds$MapSymbol)  # 'circle' seems the best think to search on with ca 4289records
 
 mapmnds <- mapmnds %>% 
-  filter(grepl("circle",MpSymbl))
-mapmnds
-Y_region
+  filter(grepl("circle|Sunburst",MapSymbol))
+
 plot(mapmnds$geometry, main = "Mound symbols in Soviet maps"); plot(Y_region$geometry,border = "red",add = T)
 ```
 
@@ -128,6 +160,7 @@ Mapview is great for interactive viewing in the digital document.
 library(mapview)
 
 mapview(Yam_mnds, cex = 1) + mapview(Yam_bunkers, zcol = "Feature type")
+
 ```   
 ## Great, let's explore different plotting packages
 
