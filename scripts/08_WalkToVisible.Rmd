@@ -1,0 +1,45 @@
+---
+title: "WalkingToMounds"
+author: "Adela Sobotkova"
+date: "2024-04-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(mapboxapi)
+```
+## Get mound data
+```{r}
+Yam_mnds <- readRDS("../output_data/Yam_dd_mnds.rds") # 1073 features
+hist(Yam_mnds$prom250mbuff)
+Yam_mnds %>% 
+  filter(prom250mbuff > 85) %>% 
+  mapview()
+```
+
+## Walking isochrones
+```{r}
+
+mnds_85prom <- Yam_mnds %>% 
+  filter(prom250mbuff > 85)
+
+# Walking range
+walking_isos <- mb_isochrone(mnds_85prom, 
+  profile = "walking", 
+  time = 60, 
+  id = "TRAP")
+
+mapview(walking_isos) + mapview(mnds_85prom)
+saveRDS(walking_isos, "../output_data/walkisos85promnds.rds")
+```
+
+## Can mounds see the LCP corridors in the region? CONTINUE
+
+- build LCPs and/or mobility corridor
+- assess its visibility from mounds / its inclusion of mounds
+
+```{r}
+
+```
+

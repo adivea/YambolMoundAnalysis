@@ -11,6 +11,7 @@ This markdown guides you to:
 
 1. Define functions to calculate line-of-sight visibility between two features and automate the process for a 1000 features. 
 2. Visualize intervisibility for calculated features (here: mounds in Yambol). To visualize, you can skip directly to section "Visualizing Intervisibility".
+3. TBD: intervisibility between mounds and settlements
 
 The script basically works, calculating linestrings, raster profiles, and intervisibility between Yam_mounds and generating maps
 
@@ -240,15 +241,15 @@ result_table %>%
   distinct(e) 
 ```
 
-## Parallelize over rasters with modelled vegetation
-Rather than calculation LoS over bare earth model, let's model it over surface where random stands of trees and scrub has been modelled. We have two rasters produced in 08_VisibilityProm.R:
+## Intervisibility of mounds in rasters with modelled vegetation
+Rather than calculating LoS over bare-earth DEM, let's model it over surface where random stands of trees and scrub have been simulated. We load two rasters produced via 08_VisibilityProm.R:
 
-1. vegetation is modelled as random stands of trees of 10m height covering 50% of the extent of Yambol (randomly)
-2. vegetation varing in height from 1-20m (normally distributed with peak at 10) modelled covering 50% of the extent of Yambol randomly
+1. DEM with vegetation modeled as random stands of trees of 10m height covering 50% of the extent of Yambol (randomly)
+2. DEM with vegetation varying in height from 1-20m (normally distributed around a peak at 10) covering 50% of the extent of Yambol randomly
 
-These rasters are overlaid over Yambol elevation and values summed, increasing the terrain in places by 10 - 20 m (producing Y_elev10 and Y_elev20grad respectively).
+These DEMs are created by overlay of vegetation rasters and  Yambol elevation, with sum as the function on all values, increasing the terrain elevation by 10 - 20 m (producing Y_elev10 and Y_elev20grad respectively).
 
-The hypothesis is that the vegetation will reduce the LoS among mounds that are at lower elevation differences or closer to one another.
+The hypothesis is that the vegetation will reduce the LoS among mounds that are at lower elevation differences or closer to one another. (Following Skov-Petersen)
 
 ```{r auto-foreach, eval = FALSE}
 # install.packages("doParallel")
@@ -293,7 +294,7 @@ saveRDS(veg20_table, "../output_data/veg20grad_los.rds")
 
 ```
 
-### Intervisibility results in a model with 0-20m vegetation
+### Intervisibility in a model with 0-20m vegetation
 Let's explore what the random injection of 0-20m (10m mean height) vegetation into the elevation model. We anticipate that the overall intervisibility/ LoS will be reduced as a result of vegetation (as Skov-Petersen has demonstrated). 
 
 ```{r results-test}
@@ -302,8 +303,8 @@ result_table <- readRDS("../output_data/veg20grad_los.rds")
 result_table <- as_tibble(result_table)
 
 head(result_table)
-result_table <- result_table %>% 
-  rename(i = V1, e = V2, visibility = V3)
+# result_table <- result_table %>% 
+#   rename(i = V1, e = V2, visibility = V3)
 
 # 10 most commanding mounds! i is the index, n is the number of visible features from it
 result_table %>% 
@@ -369,7 +370,7 @@ saveRDS(result_table, "../output_data/veg20grad_los.rds")
 ```
 
 
-### Intervisibility results in a model with 10m vegetation
+### Intervisibility in a model with 10m vegetation
 
 Let's explore what happens after the random injection of exactly 10m high vegetation into the elevation model. We anticipate that the overall intervisibility/ LoS will be reduced as a result of vegetation (as Skov-Petersen has demonstrated), but perhaps not as much as in the 20m gradual model.
 
@@ -382,11 +383,24 @@ head(result_table)
 result_table <- result_table %>% 
   rename(i = V1, e = V2, visibility = V3)
 
+# add TRAP IDs
+result_table$TRAPorigin <- Yam_mnds$TRAP[result_table$i]
+result_table$TRAPtarget <- Yam_mnds$TRAP[result_table$e]
+
+
 # 10 most commanding mounds! i is the index, n is the number of visible features from it
 result_table %>% 
   group_by(i) %>% 
   tally(visibility) %>% 
   arrange(desc(n)) # mounds no 333, 38 and 1 see the most other mounds but numbers are even lower than in the 0-20 gradual height model (247-261), 333 leads again as it did in BEmodel.
+
+los10veg_200 <- result_table %>% 
+  group_by(TRAPorigin) %>% 
+  tally(visibility) %>% 
+  arrange(desc(n)) %>% # mounds no 333, 38 and 1 see the most other mounds but numbers 
+  slice(1:200) %>% 
+  pull(TRAPorigin)
+
 
 # all the mounds visible from mound no. 333, TRAP 9412,(n = 261), lower than in veg20 (279) and less than in BEM(409).  
 result_table %>% 
@@ -396,8 +410,6 @@ result_table %>%
 ```
 
 ```{r most-intervisible-veg10-map}
-result_table$TRAPorigin <- Yam_mnds$TRAP[result_table$i]
-result_table$TRAPtarget <- Yam_mnds$TRAP[result_table$e]
 result_table %>% 
   filter(i == 333, visibility == 1) %>% 
   arrange(desc(e)) %>% 
@@ -416,18 +428,42 @@ result_table %>%
   left_join(Yam_mnds, by = c("TRAPorigin"="TRAP")) %>%
   st_as_sf(crs = 32635) %>% 
   mapview(cex = "n" , zcol = "HeightMax") +mapview(Yam_mnds,cex = 0.1) +
-  mapview(Yam_mnds %>% dplyr::filter(TRAP%in%visiblefrom9412veg10), cex = 1)
-
+  #mapview(Yam_mnds %>% dplyr::filter(TRAP%in%visiblefrom9412veg10), cex = 1)
+  mapview(Yam_mnds %>% dplyr::filter(TRAP%in%los10veg_200), cex = 4) # 200 mounds with biggest fieldview in 10m vegetation model
 ```
 
 In bare earth model, 9412 rules with line of sight to 409 other mounds. If we model random vegetation patches with mean 10m height, the mound with the greatest line of sight is 9044 a 6m tall mound near Botevo.
 
-## Visualizing intervisibility
+### Intervisibility with settlements
+
 - test for visibility between mounds and major settlements - eg. Kabyle, Dadopara and further south Turkish sites.
 
+Let's load archaeological settlements (BA-RM) known from Yambol
+```{r load-yam-sites}
+sites <- data.frame(name = c("Drazhevo","Kabyle", "Dadopara", "Stroino"),
+                    lat = c(42.544722002584564,42.548058964016256,  42.221831,  42.292159),
+                    long = c(26.44793978843489,26.48336749894564, 26.339603, 26.700300))
+
+sites <- sites %>% 
+  st_as_sf(coords = c("long", "lat"), crs = 4326)
+
+y_sites <- read_sf("~/../Desktop/TRAP_Oxbow/YAM/YAM_scatterpoints.shp")
+y_sites
+
+
+library(mapview)
+mapview(sites)+mapview(y_sites)
+
+```
+
+
+## Visualizing intervisibility
+
+
 ```{r most-intervisible-map}
-# load data
+# load data on visibility and major sites
 mnd_vis <- readRDS("../output_data/Yam_mnds_intervis.rds")
+
 
 # group by viewpoint, join to spatial points and plot on a map
 library(mapview)
@@ -483,6 +519,18 @@ plot(lines_sm); plot(Yam_mnds %>% filter(TRAP %in% mostvisiblemnd) %>% st_geomet
 The linestrings for 9412 seem to reach the national border, which is hard to believe... 
 What is going on here? Let's check the prominence of the points first and raster profiles second.
 
+```{r}
+dist2km <- st_buffer(Yam_mnds %>% filter(TRAP== 9412), 2500)
+dist5km <- st_buffer(Yam_mnds %>% filter(TRAP== 9412), 5000)
+dist10km <- st_buffer(Yam_mnds %>% filter(TRAP== 9412), 10000)
+
+
+mapview(lines_sm, cex = 0.1)+ 
+  mapview(Yam_mnds %>% filter(TRAP %in% mostvisiblemnd)) +
+  mapview(dist2km) + mapview(dist5km) + mapview(dist10km)
+```
+
+
 ## Raster profile
 ```{r}
 profile <- function(IDorigin, IDtarget){
@@ -537,6 +585,7 @@ summary(Yam_mnds[, c("prom250mbuff", "TPI", "TRI", "rough")])
 
 
 # prominence in 250m buffer
+hist(Yam_mnds$prom250mbuff)
 Yam_mnds %>% 
   filter(prom250mbuff > 85) %>% 
   mapview(zcol = "prom250mbuff") # 9412 not present!
@@ -634,7 +683,7 @@ lines(x,y, col = "red", lwd = 2)
 
 ```
 
-SOme of the mounds (Drazhevo and 8346) can not see each other, because the one on top of the Zaichi Vrah is obscured by the hill and not aimed at the mounds to the SE.  Others with clear line of sight can see one another.
+Some of the mounds (Drazhevo and 8346) can not see each other, because the one on top of the Zaichi Vrah is obscured by the hill and not aimed at the mounds to the SE.  Others with clear line of sight can see one another.
 Let's test the intervisibility between these three and other mounds in the surroundings from the Yambol Mounds dataset. We will use the viewTo() function and the starting coordinates of the three mounds.
 
 ```{r view-to-8007, warning=FALSE}
